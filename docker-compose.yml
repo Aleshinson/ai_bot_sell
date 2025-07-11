@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_bot_sell
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=${DATABASE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODERATOR_IDS=${MODERATOR_IDS}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - bot_network
+
+networks:
+  bot_network:
+    driver: bridge
