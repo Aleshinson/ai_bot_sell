@@ -2,13 +2,14 @@ import json
 import os
 import logging
 from typing import Dict, Any
+from config import Config
 
 # Create a logger
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Загружаем CHAT_URL из переменных окружения
-CHAT_URL = os.getenv('CHAT_URL')
+CHAT_URL = Config.CHAT_URL
 
 class MessageLoader:
     """Класс для загрузки и получения сообщений из JSON файла"""
@@ -75,7 +76,7 @@ class MessageLoader:
 
     def get_chat_url(self):
         """Получение URL чата из переменной окружения"""
-        return CHAT_URL
+        return Config.CHAT_URL
 
 
 # Создаем глобальный экземпляр для использования в проекте
