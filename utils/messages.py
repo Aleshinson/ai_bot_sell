@@ -7,6 +7,9 @@ from typing import Dict, Any
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Загружаем CHAT_URL из переменных окружения
+CHAT_URL = os.getenv('CHAT_URL')
+
 class MessageLoader:
     """Класс для загрузки и получения сообщений из JSON файла"""
 
@@ -17,26 +20,23 @@ class MessageLoader:
         logger.debug(f"Loaded messages: {self._messages}")
 
     def _load_messages(self) -> Dict[str, Any]:
-        """Загружает сообщения из JSON файла"""
+        """Загрузка сообщений из JSON файла"""
         try:
             # Получаем путь к корневой директории проекта
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             messages_path = os.path.join(project_root, self.messages_file)
             logger.debug(f"Attempting to load messages from: {messages_path}")
 
-            with open(messages_path, 'r', encoding='utf-8') as f:
-                loaded_messages = json.load(f)
-                logger.debug(f"Successfully loaded messages. Top-level keys: {list(loaded_messages.keys())}")
-                if 'moderation' in loaded_messages:
-                    logger.debug(f"Moderation keys: {list(loaded_messages['moderation'].keys())}")
-                return loaded_messages
-        except FileNotFoundError:
-            logger.error(f"File {self.messages_file} not found! Check if the file exists in directory {messages_path}")
-            print(f"Файл {self.messages_file} не найден! Проверьте наличие файла в директории {messages_path}")
-            return {}
-        except json.JSONDecodeError:
-            logger.error(f"Error reading JSON from file {messages_path}: file is damaged or incorrect.")
-            print(f"Ошибка при чтении JSON из файла {messages_path}: файл поврежден или некорректен.")
+            if os.path.exists(messages_path):
+                with open(messages_path, 'r', encoding='utf-8') as f:
+                    loaded_messages = json.load(f)
+                    logger.debug(f"Successfully loaded messages from {self.messages_file}")
+                    return loaded_messages
+            else:
+                logger.error(f"Messages file not found: {self.messages_file}")
+                return {}
+        except Exception as e:
+            logger.error(f"Error loading messages from {self.messages_file}: {e}")
             return {}
 
     def get_message(self, *keys: str, **kwargs) -> str:
@@ -72,6 +72,10 @@ class MessageLoader:
     def reload_messages(self):
         """Перезагружает сообщения из файла"""
         self._messages = self._load_messages()
+
+    def get_chat_url(self):
+        """Получение URL чата из переменной окружения"""
+        return CHAT_URL
 
 
 # Создаем глобальный экземпляр для использования в проекте

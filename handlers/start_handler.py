@@ -14,6 +14,13 @@ class StartHandler(BaseHandler):
     async def start_command(self, message: Message):
         """Обработка команды /start"""
         try:
+            await self.show_main_menu(message)
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def show_main_menu(self, message: Message):
+        """Показать главное меню"""
+        try:
             keyboard = self._create_main_menu_keyboard()
             welcome_text = messages.get_message('start_command', 'welcome_message')
 
@@ -22,27 +29,15 @@ class StartHandler(BaseHandler):
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
-
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
-
-    async def show_main_menu(self, message: Message):
-        """Показать главное меню"""
-        keyboard = self._create_main_menu_keyboard()
-        welcome_text = messages.get_message('start_command', 'welcome_message')
-
-        await message.answer(
-            welcome_text,
-            reply_markup=keyboard,
-            parse_mode='HTML'
-        )
 
     def _create_main_menu_keyboard(self) -> InlineKeyboardMarkup:
         """Создание клавиатуры главного меню"""
         buttons = [
             [InlineKeyboardButton(
                 text=messages.get_button_text('start_command', 'go_to_chat'),
-                url=messages.get_message('start_command', 'chat_url')
+                url=messages.get_chat_url()
             )],
             [InlineKeyboardButton(
                 text=messages.get_button_text('start_command', 'add_announcement'),

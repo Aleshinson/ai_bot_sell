@@ -17,6 +17,9 @@ class Config:
     
     # OpenAI API ключ для умного поиска
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+
+    # URL чата
+    CHAT_URL: str = os.getenv("CHAT_URL")
     
     # ID модераторов (можно задать через переменную окружения или использовать по умолчанию)
     MODERATOR_IDS: List[int] = [
@@ -32,13 +35,15 @@ class Config:
         
         if not cls.DATABASE_URL:
             raise ValueError("DATABASE_URL не найден в переменных окружения")
-        
-        # OpenAI API ключ не обязателен - если его нет, используем обычный поиск
+
         if not cls.OPENAI_API_KEY:
             print("⚠️ OPENAI_API_KEY не найден - будет использоваться обычный поиск")
         
         if not cls.MODERATOR_IDS:
             raise ValueError("MODERATOR_IDS не настроены")
+
+        if not cls.CHAT_URL:
+            raise ValueError("CHAT_URL не настроен")
 
 
 # Валидация конфигурации при импорте
