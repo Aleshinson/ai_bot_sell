@@ -13,8 +13,8 @@ class Announcement(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     chat_id = Column(Integer, nullable=False)
-    bot_name = Column(String, nullable=False)
-    bot_function = Column(String, nullable=False)
+    bot_name = Column(String(255), nullable=False)
+    bot_function = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_approved = Column(Boolean, default=None)  # None - pending, True - approved, False - rejected
     moderator_id = Column(Integer, nullable=True)
@@ -50,13 +50,12 @@ class BotInfo(Base):
     __tablename__ = "bot_info"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    functionality = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
+    functionality = Column(String(255), nullable=False)
 
 
 # Создание базы данных
 def create_tables():
     """Создание таблиц в базе данных"""
-    engine = create_engine(Config.DATABASE_URL or 'sqlite:///announcements.db',
-                          connect_args={'timeout': 15})
+    engine = create_engine(Config.DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
     Base.metadata.create_all(engine)

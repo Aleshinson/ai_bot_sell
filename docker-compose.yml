@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   bot:
     build:
@@ -10,11 +12,33 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - MODERATOR_IDS=${MODERATOR_IDS}
+      - CHAT_URL=${CHAT_URL}
     volumes:
       - ./data:/app/data
+    networks:
+      - bot_network
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"  # Убери, если доступ к базе нужен только внутри Docker
+    volumes:
+      - mysql_data:/var/lib/mysql
     networks:
       - bot_network
 
 networks:
   bot_network:
     driver: bridge
+
+volumes:
+  mysql_data:

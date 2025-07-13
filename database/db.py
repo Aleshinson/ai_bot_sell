@@ -4,8 +4,8 @@ from config import Config
 from contextlib import contextmanager
 
 # Настройка подключения к базе данных
-DATABASE_URL = Config.DATABASE_URL or 'sqlite:///announcements.db'
-engine = create_engine(DATABASE_URL, connect_args={'timeout': 15})
+DATABASE_URL = Config.DATABASE_URL
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 SessionLocal = sessionmaker(bind=engine)
 
 
