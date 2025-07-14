@@ -5,15 +5,9 @@ from aiogram.fsm.state import State, StatesGroup
 from .base import BaseHandler, DatabaseMixin
 from database.models import Announcement
 from services import AISearchService
-from utils.messages import messages
+from utils import messages
 from typing import List
-from config import Config
-import logging
-import json
 
-# Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 class SearchForm(StatesGroup):
     """Состояния формы поиска"""
@@ -250,76 +244,60 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
     async def _send_ai_search_results(self, message: Message, search_result: dict, query: str):
         """Отправка результатов AI поиска"""
-        try:
-            logger.debug("Загрузка сообщений из JSON")
-            logger.debug(f"Текущие сообщения: {json.dumps(messages._messages, indent=2)}")
+        results = search_result["results"]
+        explanation = search_result["explanation"]
 
-            results = search_result["results"]
-            explanation = search_result["explanation"]
+        # Заголовок с объяснением от AI
+        header_text = f"🤖 {explanation}\n\n🎯 Найдено решений: {len(results)}\n🔍 По запросу: \"{query}\"\n\n"
+        await message.answer(header_text, parse_mode='HTML')
 
-            # Заголовок с объяснением от AI
-            header_text = f"🤖 {explanation}\n\n"
-            await message.answer(header_text, parse_mode='HTML')
+        if len(results) == 1:
+            # Если найдено одно решение - показываем его детально
+            solution = results[0]
+            await self._send_detailed_solution(message, solution)
+        else:
+            # Если найдено несколько - показываем краткий список с кнопками выбора
+            await self._send_solutions_list(message, results)
 
-            if not results:
-                # Если ничего не найдено
-                no_results_text = messages.get_message('search', 'no_results', query=query)
-                logger.debug(f"Загруженное сообщение no_results: {no_results_text}")
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(
-                        text=messages.get_message('search', 'buttons', 'go_to_chat'),
-                        url=Config.CHAT_URL
-                    )],
-                    [InlineKeyboardButton(
-                        text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                        callback_data="back_to_menu"
-                    )]
-                ])
-                await message.answer(no_results_text, reply_markup=keyboard, parse_mode='HTML')
-            elif len(results) == 1:
-                # Если найдено одно решение - показываем его детально
-                solution = results[0]
-                solution_text = messages.get_message('search', 'single_result_header')
-                solution_text += messages.get_message(
-                    'search', 'ai_result_template',
-                    bot_name=solution['bot_name'],
-                    bot_function=solution['bot_function'],
-                    relevance=solution.get('relevance_score', 10),
-                    explanation=solution.get('ai_explanation', '')
-                )
-                solution_text += messages.get_message('search', 'single_result_footer')
+    async def _send_detailed_solution(self, message: Message, solution: dict):
+        """Отправка детальной информации об одном решении"""
+        ai_explanation = solution.get('ai_explanation', '')
+        relevance_score = solution.get('relevance_score', 0)
 
-                keyboard = InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(
-                            text=messages.get_message('search', 'buttons', 'go_to_chat'),
-                            url=Config.CHAT_URL
-                        )],
-                        [InlineKeyboardButton(
-                            text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                            callback_data="back_to_menu"
-                        )]
-                    ]
-                )
+        solution_text = (
+            f"🤖 <b>{solution['bot_name']}</b>\n"
+            f"⚡ <i>{solution['bot_function']}</i>\n"
+            f"📅 Создано: {solution['created_at'].strftime('%d.%m.%Y')}\n"
+        )
 
-                await message.answer(solution_text, reply_markup=keyboard, parse_mode='HTML')
-            else:
-                # Если найдено несколько - показываем краткий список с кнопками выбора
-                await self._send_solutions_list(message, results, query)
+        if ai_explanation:
+            solution_text += f"🎯 <i>Почему подходит: {ai_explanation}</i>\n"
 
-        except Exception as e:
-            await message.answer(
-                messages.get_message('search', 'search_error', error=str(e))
-            )
+        if relevance_score:
+            solution_text += f"📊 Релевантность: {relevance_score}/10\n"
 
-    async def _send_solutions_list(self, message: Message, solutions: List[dict], query: str):
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('search', 'buttons', 'contact_author'),
+                    url=f"tg://user?id={solution['chat_id']}"
+                )],
+                [InlineKeyboardButton(
+                    text=messages.get_message('search', 'buttons', 'back_to_menu'),
+                    callback_data="back_to_menu"
+                )]
+            ]
+        )
+
+        await message.answer(
+            solution_text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
+
+    async def _send_solutions_list(self, message: Message, solutions: List[dict]):
         """Отправка списка решений с кнопками выбора"""
         keyboard = []
-        
-        # Формируем заголовок с количеством результатов
-        header_text = messages.get_message('search', 'results_header', count=len(solutions), query=query)
-        
-        # Добавляем кнопки для каждого решения
         for i, result in enumerate(solutions[:5], 1):  # Показываем максимум 5 результатов
             keyboard.append([
                 InlineKeyboardButton(
@@ -327,15 +305,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                     callback_data=f"view_solution_{result['id']}"
                 )
             ])
-        
-        # Добавляем кнопку "Перейти в чат"
-        keyboard.append([
-            InlineKeyboardButton(
-                text=messages.get_message('search', 'buttons', 'go_to_chat'),
-                url=Config.CHAT_URL
-            )
-        ])
-        
+
         # Добавляем кнопку "В меню"
         keyboard.append([
             InlineKeyboardButton(
@@ -343,21 +313,17 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 callback_data="back_to_menu"
             )
         ])
-        
+
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-        
-        # Формируем текст с результатами
-        results_text = header_text
+
         for i, result in enumerate(solutions[:5], 1):  # Показываем максимум 5 результатов
-            results_text += "\n" + messages.get_message(
-                'search', 'announcement_template',
-                index=i,
-                bot_name=result['bot_name'],
-                bot_function=result['bot_function'][:100],
-                created_date=result['created_at'].strftime('%d.%m.%Y')
+            solution_text = (
+                f"🤖 <b>{i}. {result['bot_name']}</b>\n"
+                f"⚡ <i>{result['bot_function'][:100]}{'...' if len(result['bot_function']) > 100 else ''}</i>\n"
             )
-        
-        # Добавляем подпись о переходе в чат
-        results_text += messages.get_message('search', 'multiple_results_footer')
-        
-        await message.answer(results_text, reply_markup=reply_markup, parse_mode='HTML')
+
+            await message.answer(
+                solution_text,
+                reply_markup=reply_markup,
+                parse_mode='HTML'
+            )
