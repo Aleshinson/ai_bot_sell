@@ -11,6 +11,7 @@ class AnnouncementForm(StatesGroup):
     """Состояния формы создания объявления"""
     bot_name = State()
     bot_function = State()
+    solution_description = State()
 
 
 class AnnouncementHandler(BaseHandler, DatabaseMixin):
@@ -25,6 +26,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         self.router.callback_query(F.data == "add_announcement")(self.start_announcement_creation)
         self.router.message(AnnouncementForm.bot_name)(self.process_bot_name)
         self.router.message(AnnouncementForm.bot_function)(self.process_bot_function)
+        self.router.message(AnnouncementForm.solution_description)(self.process_solution_description)
         # Обработчик отмены создания объявления
         self.router.callback_query(F.data == "cancel_announcement")(self.cancel_announcement)
 
@@ -74,11 +76,35 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_bot_function(self, message: Message, state: FSMContext):
-        """Обработка функционала бота и создание объявления"""
+        """Обработка функционала бота"""
+        try:
+            await state.update_data(bot_function=message.text)
+            
+            # Создаем кнопку отмены
+            cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+            
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_solution_description'),
+                parse_mode='HTML',
+                reply_markup=cancel_keyboard
+            )
+            await state.set_state(AnnouncementForm.solution_description)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_solution_description(self, message: Message, state: FSMContext):
+        """Обработка описания функционала решения и создание объявления"""
         try:
             user_data = await state.get_data()
             bot_name = user_data['bot_name']
-            bot_function = message.text
+            bot_function = user_data['bot_function']
+            solution_description = message.text
 
             # Создание объявления через безопасную операцию с БД
             announcement = self.safe_db_operation(
@@ -86,7 +112,8 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message.from_user.id,
                 message.chat.id,
                 bot_name,
-                bot_function
+                bot_function,
+                solution_description
             )
 
             # Уведомление модераторов
@@ -128,9 +155,9 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     def _create_announcement_in_db(self, session, user_id: int, chat_id: int,
-                                       bot_name: str, bot_function: str) -> dict:
+                                       bot_name: str, bot_function: str, solution_description: str) -> dict:
         """Создание объявления в базе данных"""
-        announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function)
+        announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function, solution_description)
         # Возвращаем словарь с данными вместо объекта
         return {
             'id': announcement.id,
@@ -138,6 +165,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             'chat_id': announcement.chat_id,
             'bot_name': announcement.bot_name,
             'bot_function': announcement.bot_function,
+            'solution_description': announcement.solution_description,
             'is_approved': announcement.is_approved,
             'created_at': announcement.created_at
         }
@@ -156,6 +184,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 announcement_id=announcement.get('id', 'unknown'),
                 bot_name=announcement.get('bot_name', 'unknown'),
                 bot_function=announcement.get('bot_function', 'unknown'),
+                solution_description=announcement.get('solution_description', 'unknown'),
                 username=announcement.get('user_id', 'unknown_user'),
                 created_date=created_date
             )

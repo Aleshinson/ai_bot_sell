@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, create_engine
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from config import Config
 import datetime
@@ -15,6 +15,7 @@ class Announcement(Base):
     chat_id = Column(Integer, nullable=False)
     bot_name = Column(String(255), nullable=False)
     bot_function = Column(String(255), nullable=False)
+    solution_description = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_approved = Column(Boolean, default=None)  # None - pending, True - approved, False - rejected
     moderator_id = Column(Integer, nullable=True)
