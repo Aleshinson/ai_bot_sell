@@ -7,6 +7,7 @@ from database.models import Announcement
 from services import AISearchService
 from utils import messages
 from typing import List
+from config import Config
 
 
 class SearchForm(StatesGroup):
@@ -306,6 +307,14 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 )
             ])
         
+        # Добавляем кнопку "Перейти в чат"
+        keyboard.append([
+            InlineKeyboardButton(
+                text=messages.get_message('search', 'buttons', 'go_to_chat'),
+                url=Config.CHAT_URL
+            )
+        ])
+        
         # Добавляем кнопку "В меню"
         keyboard.append([
             InlineKeyboardButton(
@@ -316,6 +325,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
         
+        # Отправляем результаты с сообщением о просмотре всех решений в чате
         for i, result in enumerate(solutions[:5], 1):  # Показываем максимум 5 результатов
             solution_text = (
                 f"🤖 <b>{i}. {result['bot_name']}</b>\n"
@@ -327,3 +337,9 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
+        
+        # Отправляем сообщение о просмотре всех решений в чате
+        await message.answer(
+            messages.get_message('search', 'view_all_in_chat'),
+            parse_mode='HTML'
+        )
