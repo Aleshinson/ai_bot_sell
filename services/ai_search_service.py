@@ -1,6 +1,5 @@
 import json
-import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict
 from openai import AsyncOpenAI
 from config import Config
 

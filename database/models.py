@@ -45,15 +45,6 @@ class Announcement(Base):
         return self.is_approved is False
 
 
-class BotInfo(Base):
-    """Модель информации о боте (из старого файла model.py)"""
-    __tablename__ = "bot_info"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)
-    functionality = Column(String(255), nullable=False)
-
-
 # Создание базы данных
 def create_tables():
     """Создание таблиц в базе данных"""

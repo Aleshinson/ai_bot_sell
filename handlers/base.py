@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from aiogram import Router
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import CallbackQuery
 from sqlalchemy.orm import Session
 from database.models import Announcement
 from database.db import get_session

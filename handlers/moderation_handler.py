@@ -3,7 +3,6 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from .base import BaseHandler, DatabaseMixin
-from database.models import Announcement
 from utils import messages
 from config import Config
 from typing import List
