@@ -5,10 +5,15 @@ from aiogram.fsm.state import State, StatesGroup
 from .base import BaseHandler, DatabaseMixin
 from database.models import Announcement
 from services import AISearchService
-from utils import messages
+from utils.messages import messages
 from typing import List
 from config import Config
+import logging
+import json
 
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class SearchForm(StatesGroup):
     """Состояния формы поиска"""
@@ -43,7 +48,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                     callback_data="cancel_search"
                 )]
             ])
-            
+
             await callback.message.answer(
                 messages.get_message('search', 'enter_search_query'),
                 parse_mode='HTML',
@@ -108,18 +113,18 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         """Просмотр детальной информации о решении"""
         try:
             solution_id = int(callback.data.split("_")[-1])
-            
+
             # Получаем информацию о решении из БД
             announcement_data = self.safe_db_operation(
                 self._get_announcement_for_contact, solution_id
             )
-            
+
             if not announcement_data:
                 await callback.message.answer(
                     messages.get_message('moderation', 'announcement_not_found')
                 )
                 return
-            
+
             # Форматируем детальную информацию
             details_text = messages.get_message(
                 'search', 'solution_details_template',
@@ -127,7 +132,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 bot_function=announcement_data['bot_function'],
                 created_date=announcement_data['created_date'].strftime('%d.%m.%Y')
             )
-            
+
             # Создаем кнопки для связи и возврата
             keyboard = [
                 [InlineKeyboardButton(
@@ -139,16 +144,16 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                     callback_data="back_to_menu"
                 )]
             ]
-            
+
             reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-            
+
             await callback.message.answer(
                 details_text,
                 parse_mode='HTML',
                 reply_markup=reply_markup
             )
             await callback.answer()
-            
+
         except Exception as e:
             await callback.message.answer(
                 messages.get_message('search', 'search_error', error=str(e))
@@ -160,7 +165,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             Announcement.id == announcement_id,
             Announcement.is_approved == True
         ).first()
-        
+
         if announcement:
             return {
                 'id': announcement.id,
@@ -175,12 +180,12 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         """Отмена поиска"""
         try:
             await state.clear()
-            
+
             # Возвращаем главное меню
             from .start_handler import StartHandler
             start_handler = StartHandler()
             await start_handler.show_main_menu(callback.message)
-            
+
             await callback.message.answer(
                 messages.get_message('search', 'search_cancelled'),
                 parse_mode='HTML'
@@ -196,7 +201,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         """Возврат в главное меню"""
         try:
             await state.clear()
-            
+
             # Возвращаем главное меню
             from .start_handler import StartHandler
             start_handler = StartHandler()
@@ -213,7 +218,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         announcements = session.query(Announcement).filter(
             Announcement.is_approved == True
         ).order_by(Announcement.created_at.desc()).all()
-        
+
         return [
             {
                 'id': ann.id,
@@ -232,7 +237,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         announcement = self.get_announcement_by_id(session, announcement_id)
         if not announcement:
             return None
-        
+
         return {
             'id': announcement.id,
             'user_id': announcement.user_id,
@@ -245,42 +250,22 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
     async def _send_ai_search_results(self, message: Message, search_result: dict, query: str):
         """Отправка результатов AI поиска"""
-        results = search_result["results"]
-        explanation = search_result["explanation"]
-        
-        # Заголовок с объяснением от AI
-        header_text = f"🤖 {explanation}\n\n"
-        await message.answer(header_text, parse_mode='HTML')
+        try:
+            logger.debug("Загрузка сообщений из JSON")
+            logger.debug(f"Текущие сообщения: {json.dumps(messages._messages, indent=2)}")
 
-        if not results:
-            # Если ничего не найдено
-            no_results_text = messages.get_message('search', 'no_results', query=query)
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=messages.get_message('search', 'buttons', 'go_to_chat'),
-                    url=Config.CHAT_URL
-                )],
-                [InlineKeyboardButton(
-                    text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                    callback_data="back_to_menu"
-                )]
-            ])
-            await message.answer(no_results_text, reply_markup=keyboard, parse_mode='HTML')
-        elif len(results) == 1:
-            # Если найдено одно решение - показываем его детально
-            solution = results[0]
-            solution_text = messages.get_message('search', 'single_result_header')
-            solution_text += messages.get_message(
-                'search', 'ai_result_template',
-                bot_name=solution['bot_name'],
-                bot_function=solution['bot_function'],
-                relevance=solution.get('relevance_score', 10),
-                explanation=solution.get('ai_explanation', '')
-            )
-            solution_text += messages.get_message('search', 'single_result_footer')
-            
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
+            results = search_result["results"]
+            explanation = search_result["explanation"]
+
+            # Заголовок с объяснением от AI
+            header_text = f"🤖 {explanation}\n\n"
+            await message.answer(header_text, parse_mode='HTML')
+
+            if not results:
+                # Если ничего не найдено
+                no_results_text = messages.get_message('search', 'no_results', query=query)
+                logger.debug(f"Загруженное сообщение no_results: {no_results_text}")
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(
                         text=messages.get_message('search', 'buttons', 'go_to_chat'),
                         url=Config.CHAT_URL
@@ -289,13 +274,43 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                         text=messages.get_message('search', 'buttons', 'back_to_menu'),
                         callback_data="back_to_menu"
                     )]
-                ]
+                ])
+                await message.answer(no_results_text, reply_markup=keyboard, parse_mode='HTML')
+            elif len(results) == 1:
+                # Если найдено одно решение - показываем его детально
+                solution = results[0]
+                solution_text = messages.get_message('search', 'single_result_header')
+                solution_text += messages.get_message(
+                    'search', 'ai_result_template',
+                    bot_name=solution['bot_name'],
+                    bot_function=solution['bot_function'],
+                    relevance=solution.get('relevance_score', 10),
+                    explanation=solution.get('ai_explanation', '')
+                )
+                solution_text += messages.get_message('search', 'single_result_footer')
+
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(
+                            text=messages.get_message('search', 'buttons', 'go_to_chat'),
+                            url=Config.CHAT_URL
+                        )],
+                        [InlineKeyboardButton(
+                            text=messages.get_message('search', 'buttons', 'back_to_menu'),
+                            callback_data="back_to_menu"
+                        )]
+                    ]
+                )
+
+                await message.answer(solution_text, reply_markup=keyboard, parse_mode='HTML')
+            else:
+                # Если найдено несколько - показываем краткий список с кнопками выбора
+                await self._send_solutions_list(message, results, query)
+
+        except Exception as e:
+            await message.answer(
+                messages.get_message('search', 'search_error', error=str(e))
             )
-            
-            await message.answer(solution_text, reply_markup=keyboard, parse_mode='HTML')
-        else:
-            # Если найдено несколько - показываем краткий список с кнопками выбора
-            await self._send_solutions_list(message, results, query)
 
     async def _send_solutions_list(self, message: Message, solutions: List[dict], query: str):
         """Отправка списка решений с кнопками выбора"""
