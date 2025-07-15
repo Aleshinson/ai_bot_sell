@@ -12,6 +12,11 @@ class AnnouncementForm(StatesGroup):
     bot_name = State()
     bot_function = State()
     solution_description = State()
+    included_features = State()
+    client_requirements = State()
+    launch_time = State()
+    price = State()
+    complexity = State()
 
 
 class AnnouncementHandler(BaseHandler, DatabaseMixin):
@@ -27,6 +32,11 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         self.router.message(AnnouncementForm.bot_name)(self.process_bot_name)
         self.router.message(AnnouncementForm.bot_function)(self.process_bot_function)
         self.router.message(AnnouncementForm.solution_description)(self.process_solution_description)
+        self.router.message(AnnouncementForm.included_features)(self.process_included_features)
+        self.router.message(AnnouncementForm.client_requirements)(self.process_client_requirements)
+        self.router.message(AnnouncementForm.launch_time)(self.process_launch_time)
+        self.router.message(AnnouncementForm.price)(self.process_price)
+        self.router.callback_query(F.data.startswith("complexity_"))(self.process_complexity)
         # Обработчик отмены создания объявления
         self.router.callback_query(F.data == "cancel_announcement")(self.cancel_announcement)
 
@@ -99,28 +109,194 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_solution_description(self, message: Message, state: FSMContext):
-        """Обработка описания функционала решения и создание объявления"""
+        """Обработка описания функционала"""
         try:
-            user_data = await state.get_data()
-            bot_name = user_data['bot_name']
-            bot_function = user_data['bot_function']
-            solution_description = message.text
+            await state.update_data(solution_description=message.text)
+
+            # Создаем кнопку отмены
+            cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_included_features'),
+                parse_mode='HTML',
+                reply_markup=cancel_keyboard
+            )
+            await state.set_state(AnnouncementForm.included_features)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_included_features(self, message: Message, state: FSMContext):
+        """Обработка списка включенных возможностей"""
+        try:
+            await state.update_data(included_features=message.text)
+
+            # Создаем кнопку отмены
+            cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_client_requirements'),
+                parse_mode='HTML',
+                reply_markup=cancel_keyboard
+            )
+            await state.set_state(AnnouncementForm.client_requirements)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_client_requirements(self, message: Message, state: FSMContext):
+        """Обработка списка требований к клиенту"""
+        try:
+            await state.update_data(client_requirements=message.text)
+
+            # Создаем кнопку отмены
+            cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_launch_time'),
+                parse_mode='HTML',
+                reply_markup=cancel_keyboard
+            )
+            await state.set_state(AnnouncementForm.launch_time)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_launch_time(self, message: Message, state: FSMContext):
+        """Обработка срока запуска"""
+        try:
+            await state.update_data(launch_time=message.text)
+
+            # Создаем кнопку отмены
+            cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_price'),
+                parse_mode='HTML',
+                reply_markup=cancel_keyboard
+            )
+            await state.set_state(AnnouncementForm.price)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_price(self, message: Message, state: FSMContext):
+        """Обработка цены"""
+        try:
+            # Проверяем, что цена не содержит "по договоренности"
+            if "по договоренности" in message.text.lower():
+                await message.answer(
+                    '❌ Нельзя указывать "по договоренности". Пожалуйста, укажите конкретную цену.',
+                    parse_mode='HTML'
+                )
+                return
+
+            await state.update_data(price=message.text)
+
+            # Создаем инлайн-кнопки для выбора сложности
+            complexity_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🟢 Низкая — без интеграций",
+                        callback_data="complexity_low"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🟡 Средняя — нужны шаблоны, но без API",
+                        callback_data="complexity_medium"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔴 Высокая — глубокая кастомизация, CRM, интеграции",
+                        callback_data="complexity_high"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена",
+                        callback_data="cancel_announcement"
+                    )
+                ]
+            ])
+
+            await message.answer(
+                messages.get_message('announcement_creation', 'enter_complexity'),
+                parse_mode='HTML',
+                reply_markup=complexity_keyboard
+            )
+            await state.set_state(AnnouncementForm.complexity)
+
+        except Exception as e:
+            await self.send_error_message(message, 'general_error', error=str(e))
+
+    async def process_complexity(self, callback_query: CallbackQuery, state: FSMContext):
+        """Обработка выбора сложности"""
+        try:
+            # Получаем значение сложности из callback_data
+            complexity = callback_query.data.replace("complexity_", "")
+
+            # Преобразуем в человекочитаемый формат
+            complexity_map = {
+                "low": "🟢 Низкая — без интеграций",
+                "medium": "🟡 Средняя — нужны шаблоны, но без API",
+                "high": "🔴 Высокая — глубокая кастомизация, CRM, интеграции"
+            }
+
+            await state.update_data(complexity=complexity_map[complexity])
+
+            # Получаем данные из состояния
+            data = await state.get_data()
+            bot_name = data.get('bot_name')
+            bot_function = data.get('bot_function')
+            solution_description = data.get('solution_description')
+            included_features = data.get('included_features')
+            client_requirements = data.get('client_requirements')
+            launch_time = data.get('launch_time')
+            price = data.get('price')
+            complexity = data.get('complexity')
 
             # Создание объявления через безопасную операцию с БД
             announcement = self.safe_db_operation(
                 self._create_announcement_in_db,
-                message.from_user.id,
-                message.chat.id,
+                callback_query.from_user.id,
+                callback_query.message.chat.id,
                 bot_name,
                 bot_function,
-                solution_description
+                solution_description,
+                included_features,
+                client_requirements,
+                launch_time,
+                price,
+                complexity
             )
 
             # Уведомление модераторов
-            await self._notify_moderators(message, announcement)
+            await self._notify_moderators(callback_query.message, announcement)
 
             # Уведомление пользователя
-            await message.answer(
+            await callback_query.message.answer(
                 messages.get_message('announcement_creation', 'announcement_sent',
                                    announcement_id=announcement['id']),
                 parse_mode='HTML'
@@ -129,35 +305,31 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await state.clear()
 
         except Exception as e:
-            await message.answer(
+            await callback_query.message.answer(
                 messages.get_message('announcement_creation', 'save_error', error=str(e)),
                 parse_mode='HTML'
             )
             await state.clear()
 
-    async def cancel_announcement(self, callback: CallbackQuery, state: FSMContext):
+    async def cancel_announcement(self, callback_query: CallbackQuery, state: FSMContext):
         """Отмена создания объявления"""
         try:
             await state.clear()
-
-            # Возвращаем главное меню
-            from .start_handler import StartHandler
-            start_handler = StartHandler()
-            await start_handler.show_main_menu(callback.message)
-
-            await callback.message.answer(
+            await callback_query.message.answer(
                 messages.get_message('announcement_creation', 'cancelled'),
                 parse_mode='HTML'
             )
-            await callback.answer()
-
         except Exception as e:
-            await self.send_error_message(callback, 'general_error', error=str(e))
+            await self.send_error_message(callback_query.message, 'general_error', error=str(e))
 
     def _create_announcement_in_db(self, session, user_id: int, chat_id: int,
-                                       bot_name: str, bot_function: str, solution_description: str) -> dict:
+                                       bot_name: str, bot_function: str, solution_description: str,
+                                       included_features: str, client_requirements: str,
+                                       launch_time: str, price: str, complexity: str) -> dict:
         """Создание объявления в базе данных"""
-        announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function, solution_description)
+        announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function,
+                                              solution_description, included_features, client_requirements,
+                                              launch_time, price, complexity)
         # Возвращаем словарь с данными вместо объекта
         return {
             'id': announcement.id,
@@ -166,6 +338,11 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             'bot_name': announcement.bot_name,
             'bot_function': announcement.bot_function,
             'solution_description': announcement.solution_description,
+            'included_features': announcement.included_features,
+            'client_requirements': announcement.client_requirements,
+            'launch_time': announcement.launch_time,
+            'price': announcement.price,
+            'complexity': announcement.complexity,
             'is_approved': announcement.is_approved,
             'created_at': announcement.created_at
         }
@@ -185,6 +362,11 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 bot_name=announcement.get('bot_name', 'unknown'),
                 bot_function=announcement.get('bot_function', 'unknown'),
                 solution_description=announcement.get('solution_description', 'unknown'),
+                included_features=announcement.get('included_features', 'unknown'),
+                client_requirements=announcement.get('client_requirements', 'unknown'),
+                launch_time=announcement.get('launch_time', 'unknown'),
+                price=announcement.get('price', 'unknown'),
+                complexity=announcement.get('complexity', 'unknown'),
                 username=announcement.get('user_id', 'unknown_user'),
                 created_date=created_date
             )

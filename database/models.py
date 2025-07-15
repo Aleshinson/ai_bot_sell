@@ -16,6 +16,11 @@ class Announcement(Base):
     bot_name = Column(String(255), nullable=False)
     bot_function = Column(String(255), nullable=False)
     solution_description = Column(Text, nullable=False)
+    included_features = Column(Text, nullable=False)
+    client_requirements = Column(Text, nullable=False)
+    launch_time = Column(String(50), nullable=False)  # Срок запуска
+    price = Column(String(100), nullable=False)      # Цена
+    complexity = Column(String(50), nullable=False)  # Сложность
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_approved = Column(Boolean, default=None)  # None - pending, True - approved, False - rejected
     moderator_id = Column(Integer, nullable=True)

@@ -63,7 +63,9 @@ class DatabaseMixin:
         return session.query(Announcement).filter(Announcement.id == announcement_id).first()
 
     def create_announcement(self, session: Session, user_id: int, chat_id: int,
-                                bot_name: str, bot_function: str, solution_description: str) -> Announcement:
+                                bot_name: str, bot_function: str, solution_description: str,
+                                included_features: str, client_requirements: str,
+                                launch_time: str, price: str, complexity: str) -> Announcement:
         """Создание нового объявления"""
         new_announcement = Announcement(
             user_id=user_id,
@@ -71,6 +73,11 @@ class DatabaseMixin:
             bot_name=bot_name,
             bot_function=bot_function,
             solution_description=solution_description,
+            included_features=included_features,
+            client_requirements=client_requirements,
+            launch_time=launch_time,
+            price=price,
+            complexity=complexity,
             is_approved=None
         )
         session.add(new_announcement)
