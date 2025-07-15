@@ -65,7 +65,8 @@ class DatabaseMixin:
     def create_announcement(self, session: Session, user_id: int, chat_id: int,
                                 bot_name: str, bot_function: str, solution_description: str,
                                 included_features: str, client_requirements: str,
-                                launch_time: str, price: str, complexity: str) -> Announcement:
+                                launch_time: str, price: str, complexity: str,
+                                demo_url: str, documents: list, videos: list) -> Announcement:
         """Создание нового объявления"""
         new_announcement = Announcement(
             user_id=user_id,
@@ -78,6 +79,9 @@ class DatabaseMixin:
             launch_time=launch_time,
             price=price,
             complexity=complexity,
+            demo_url=demo_url,
+            documents=documents,
+            videos=videos,
             is_approved=None
         )
         session.add(new_announcement)

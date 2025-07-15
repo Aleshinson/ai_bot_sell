@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from .base import BaseHandler, DatabaseMixin
 from utils import messages
 from config import Config
+import os
 
 
 class AnnouncementForm(StatesGroup):
@@ -17,6 +18,7 @@ class AnnouncementForm(StatesGroup):
     launch_time = State()
     price = State()
     complexity = State()
+    documents = State()
 
 
 class AnnouncementHandler(BaseHandler, DatabaseMixin):
@@ -37,6 +39,8 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         self.router.message(AnnouncementForm.launch_time)(self.process_launch_time)
         self.router.message(AnnouncementForm.price)(self.process_price)
         self.router.callback_query(F.data.startswith("complexity_"))(self.process_complexity)
+        self.router.message(AnnouncementForm.documents)(self.process_documents)
+        self.router.callback_query(F.data == "documents_done")(self.documents_done)
         # Обработчик отмены создания объявления
         self.router.callback_query(F.data == "cancel_announcement")(self.cancel_announcement)
 
@@ -217,19 +221,19 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             complexity_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="🟢 Низкая — без интеграций",
+                        text="🟢 Низкая",
                         callback_data="complexity_low"
                     )
                 ],
                 [
                     InlineKeyboardButton(
-                        text="🟡 Средняя — нужны шаблоны, но без API",
+                        text="🟡 Средняя",
                         callback_data="complexity_medium"
                     )
                 ],
                 [
                     InlineKeyboardButton(
-                        text="🔴 Высокая — глубокая кастомизация, CRM, интеграции",
+                        text="🔴 Высокая",
                         callback_data="complexity_high"
                     )
                 ],
@@ -266,7 +270,132 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
             await state.update_data(complexity=complexity_map[complexity])
 
-            # Получаем данные из состояния
+            # Создаем кнопку "Готово"
+            done_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Готово",
+                        callback_data="documents_done"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена",
+                        callback_data="cancel_announcement"
+                    )
+                ]
+            ])
+
+            await callback_query.message.answer(
+                messages.get_message('announcement_creation', 'enter_documents'),
+                parse_mode='HTML',
+                reply_markup=done_keyboard
+            )
+            await state.set_state(AnnouncementForm.documents)
+
+        except Exception as e:
+            await callback_query.message.answer(
+                messages.get_message('announcement_creation', 'save_error', error=str(e)),
+                parse_mode='HTML'
+            )
+            await state.clear()
+
+    async def process_documents(self, message: Message, state: FSMContext):
+        """Обработка загрузки документов"""
+        try:
+            # Получаем текущие данные из состояния
+            data = await state.get_data()
+            documents = data.get('documents', [])
+            videos = data.get('videos', [])
+            demo_url = data.get('demo_url', '')
+
+            # Обработка разных типов сообщений
+            if message.document:
+                # Проверяем размер файла
+                if message.document.file_size > 50 * 1024 * 1024:  # 50MB
+                    await message.answer("❌ Файл слишком большой. Максимальный размер: 50 МБ")
+                    return
+
+                # Проверяем формат файла
+                allowed_extensions = ['.docx', '.pdf', '.xlsx', '.pptx', '.mp4', '.avi', '.mov', '.jpg', '.png']
+                file_extension = os.path.splitext(message.document.file_name)[1].lower()
+                if file_extension not in allowed_extensions:
+                    await message.answer(
+                        f"❌ Неподдерживаемый формат файла. Доступные форматы: {', '.join(allowed_extensions)}"
+                    )
+                    return
+
+                # Сохраняем информацию о документе
+                documents.append({
+                    'file_id': message.document.file_id,
+                    'file_name': message.document.file_name,
+                    'file_size': message.document.file_size,
+                    'mime_type': message.document.mime_type
+                })
+
+            elif message.video:
+                # Проверяем размер видео
+                if message.video.file_size > 50 * 1024 * 1024:
+                    await message.answer("❌ Видео слишком большое. Максимальный размер: 50 МБ")
+                    return
+
+                # Сохраняем информацию о видео
+                videos.append({
+                    'file_id': message.video.file_id,
+                    'file_name': message.video.file_name,
+                    'file_size': message.video.file_size,
+                    'mime_type': message.video.mime_type,
+                    'duration': message.video.duration
+                })
+
+            elif message.text and not message.text.startswith("/"):
+                # Если отправлена ссылка на демо
+                if message.text.lower().startswith(('http://', 'https://')):
+                    demo_url = message.text
+                else:
+                    await message.answer(
+                        "❌ Пожалуйста, отправьте файл или ссылку на демо"
+                    )
+                    return
+
+            # Сохраняем обновленные данные
+            await state.update_data(
+                documents=documents,
+                videos=videos,
+                demo_url=demo_url
+            )
+
+            # Отправляем подтверждение
+            done_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Готово",
+                        callback_data="documents_done"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена",
+                        callback_data="cancel_announcement"
+                    )
+                ]
+            ])
+            await message.answer(
+                '✅ Файл успешно загружен. Вы можете загрузить еще файлы или нажать "Готово"',
+                reply_markup=done_keyboard
+            )
+
+        except Exception as e:
+            await message.answer(
+                messages.get_message('announcement_creation', 'save_error', error=str(e)),
+                parse_mode='HTML'
+            )
+            await state.clear()
+
+    async def documents_done(self, callback_query: CallbackQuery, state: FSMContext):
+        """Обработка завершения загрузки документов"""
+        try:
+            # Получаем все данные из состояния
             data = await state.get_data()
             bot_name = data.get('bot_name')
             bot_function = data.get('bot_function')
@@ -276,6 +405,9 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             launch_time = data.get('launch_time')
             price = data.get('price')
             complexity = data.get('complexity')
+            documents = data.get('documents', [])
+            videos = data.get('videos', [])
+            demo_url = data.get('demo_url', '')
 
             # Создание объявления через безопасную операцию с БД
             announcement = self.safe_db_operation(
@@ -289,7 +421,10 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 client_requirements,
                 launch_time,
                 price,
-                complexity
+                complexity,
+                demo_url,
+                documents,
+                videos
             )
 
             # Уведомление модераторов
@@ -325,11 +460,12 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
     def _create_announcement_in_db(self, session, user_id: int, chat_id: int,
                                        bot_name: str, bot_function: str, solution_description: str,
                                        included_features: str, client_requirements: str,
-                                       launch_time: str, price: str, complexity: str) -> dict:
+                                       launch_time: str, price: str, complexity: str,
+                                       demo_url: str, documents: list, videos: list) -> dict:
         """Создание объявления в базе данных"""
         announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function,
                                               solution_description, included_features, client_requirements,
-                                              launch_time, price, complexity)
+                                              launch_time, price, complexity, demo_url, documents, videos)
         # Возвращаем словарь с данными вместо объекта
         return {
             'id': announcement.id,
@@ -344,7 +480,10 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             'price': announcement.price,
             'complexity': announcement.complexity,
             'is_approved': announcement.is_approved,
-            'created_at': announcement.created_at
+            'created_at': announcement.created_at,
+            'demo_url': announcement.demo_url,
+            'documents': announcement.documents,
+            'videos': announcement.videos
         }
 
     async def _notify_moderators(self, message: Message, announcement: dict):

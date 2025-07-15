@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, create_engine
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from config import Config
 import datetime
@@ -21,6 +21,9 @@ class Announcement(Base):
     launch_time = Column(String(50), nullable=False)  # Срок запуска
     price = Column(String(100), nullable=False)      # Цена
     complexity = Column(String(50), nullable=False)  # Сложность
+    demo_url = Column(String(2048), nullable=True)  # Ссылка на демо
+    documents = Column(JSON, nullable=True)  # JSON с информацией о документах
+    videos = Column(JSON, nullable=True)  # JSON с информацией о видео
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_approved = Column(Boolean, default=None)  # None - pending, True - approved, False - rejected
     moderator_id = Column(Integer, nullable=True)
