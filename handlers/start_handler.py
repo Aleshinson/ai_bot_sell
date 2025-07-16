@@ -2,6 +2,10 @@ from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .base import BaseHandler
 from utils import messages
+import logging
+
+# Используем логгер для модуля handlers
+logger = logging.getLogger('handlers')
 
 
 class StartHandler(BaseHandler):
@@ -19,17 +23,25 @@ class StartHandler(BaseHandler):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def show_main_menu(self, message: Message):
-        """Показать главное меню"""
+        """Отправка главного меню с кнопками"""
         try:
             keyboard = self._create_main_menu_keyboard()
             welcome_text = messages.get_message('start_command', 'welcome_message')
-
+            
+            # Удаляем предыдущее сообщение если возможно
+            try:
+                await message.delete()
+            except Exception:
+                pass  # Игнорируем ошибки удаления
+                
             await message.answer(
                 welcome_text,
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
+            
         except Exception as e:
+            logger.error(f"Error displaying main menu: {str(e)}")
             await self.send_error_message(message, 'general_error', error=str(e))
 
     def _create_main_menu_keyboard(self) -> InlineKeyboardMarkup:

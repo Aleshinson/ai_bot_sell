@@ -6,7 +6,11 @@ from .base import BaseHandler, DatabaseMixin
 from utils import messages
 from config import Config
 from typing import List
+from handlers.start_handler import StartHandler
+import logging
 
+# Используем логгер для модуля handlers
+logger = logging.getLogger('handlers')
 
 class ModerationForm(StatesGroup):
     """Состояния формы модерации"""
@@ -22,10 +26,12 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
 
     def setup_handlers(self):
         """Настройка обработчиков"""
+        # Специфичные обработчики должны идти ПЕРЕД общим
         self.router.callback_query(F.data.startswith("approve_"))(self.approve_announcement)
         self.router.callback_query(F.data.startswith("reject_"))(self.reject_announcement)
+        self.router.callback_query(F.data == 'main_menu')(self.back_to_menu)
         self.router.message(ModerationForm.comment)(self.process_rejection_comment)
-
+        
     async def approve_announcement(self, callback: CallbackQuery):
         """Одобрение объявления"""
         announcement_id = int(callback.data.split("_")[1])
@@ -229,6 +235,23 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
 
         await state.clear()
 
+    async def back_to_menu(self, callback: CallbackQuery):
+        """Обработчик кнопки 'В меню'"""
+        try:
+            start_handler = StartHandler()
+            await start_handler.show_main_menu(callback.message)
+            await callback.answer()
+
+        except Exception as e:
+            logger.error(f"Error displaying main menu: {str(e)}")
+            try:
+                await callback.message.answer(
+                    messages.get_message('moderation', 'general_error', error=str(e)),
+                    parse_mode='HTML'
+                )
+            except Exception as answer_error:
+                logger.error(f"Failed to send error message: {answer_error}")
+                
     # Приватные методы для работы с БД
     def _approve_announcement_in_db(self, session, announcement_id: int, moderator_id: int):
         """Одобрение объявления в БД"""
@@ -312,47 +335,42 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
 
     # Приватные методы для уведомлений
     async def _notify_user_approval(self, message: Message, announcement: dict):
-        """Уведомление пользователя об одобрении"""
+        """Уведомление пользователя об одобрении объявления"""
         try:
-            # Создаем кнопку "В меню"
-            menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=messages.get_message('navigation', 'buttons', 'back_to_menu'),
-                    callback_data="back_to_menu"
-                )]
-            ])
-            
+            # Создаем клавиатуру с кнопкой "В меню"
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=messages.get_button_text('moderation', 'back_to_menu'),
+                        callback_data='main_menu'
+                    )]
+                ]
+            )
+
+            # Отправляем уведомление с клавиатурой
             await message.bot.send_message(
                 announcement['chat_id'],
-                messages.get_message('moderation', 'approval_notification',
-                                   announcement_id=announcement['id'],
-                                   bot_name=announcement.get('bot_name', 'Unknown'),
-                                   bot_function=announcement.get('bot_function', 'Not specified')),
-                parse_mode='HTML',
-                reply_markup=menu_keyboard
+                messages.get_message('moderation', 'approval_notification', bot_name=announcement['bot_name']),
+                reply_markup=keyboard,
+                parse_mode='HTML'
             )
+
         except Exception as e:
-            print(f"Failed to notify user about approval: {e}")
+            await message.answer(
+                messages.get_message('moderation', 'general_error', error=str(e)),
+                parse_mode='HTML'
+            )
 
     async def _notify_user_rejection(self, message: Message, announcement: dict, comment: str):
         """Уведомление пользователя об отклонении"""
         try:
-            # Создаем кнопку "В меню"
-            menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=messages.get_message('navigation', 'buttons', 'back_to_menu'),
-                    callback_data="back_to_menu"
-                )]
-            ])
-            
             await message.bot.send_message(
                 announcement['chat_id'],
                 messages.get_message('moderation', 'rejection_notification',
                                    announcement_id=announcement.get('id', 'unknown'),
                                    bot_name=announcement.get('bot_name', 'Неизвестно'),
                                    comment=comment),
-                parse_mode='HTML',
-                reply_markup=menu_keyboard
+                parse_mode='HTML'
             )
         except Exception as e:
             print(f"Не удалось уведомить пользователя об отклонении: {e}")

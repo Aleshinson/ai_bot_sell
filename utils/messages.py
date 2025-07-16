@@ -16,9 +16,7 @@ class MessageLoader:
 
     def __init__(self, messages_file: str = "messages.json"):
         self.messages_file = messages_file
-        logger.debug(f"Initializing MessageLoader with messages file: {messages_file}")
         self._messages = self._load_messages()
-        logger.debug(f"Loaded messages: {self._messages}")
 
     def _load_messages(self) -> Dict[str, Any]:
         """Загрузка сообщений из JSON файла"""
@@ -26,12 +24,10 @@ class MessageLoader:
             # Получаем путь к корневой директории проекта
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             messages_path = os.path.join(project_root, self.messages_file)
-            logger.debug(f"Attempting to load messages from: {messages_path}")
 
             if os.path.exists(messages_path):
                 with open(messages_path, 'r', encoding='utf-8') as f:
                     loaded_messages = json.load(f)
-                    logger.debug(f"Successfully loaded messages from {self.messages_file}")
                     return loaded_messages
             else:
                 logger.error(f"Messages file not found: {self.messages_file}")

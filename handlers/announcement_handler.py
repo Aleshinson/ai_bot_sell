@@ -77,7 +77,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         try:
             # Сохраняем ID сообщения для дальнейшего редактирования
             await state.update_data(message_id=callback.message.message_id)
-            
+
             keyboard = self._create_navigation_keyboard("cancel_announcement")
 
             await callback.message.edit_text(
@@ -94,40 +94,40 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
     def _create_navigation_keyboard(self, back_action=None, additional_buttons=None):
         """Создание клавиатуры с навигацией"""
         buttons = []
-        
+
         if additional_buttons:
             for row in additional_buttons:
                 buttons.append(row)
-        
+
         nav_row = []
         if back_action and back_action != "cancel_announcement":
             nav_row.append(InlineKeyboardButton(
                 text=messages.get_message('announcement_creation', 'buttons', 'back'),
                 callback_data=back_action
             ))
-        
+
         nav_row.append(InlineKeyboardButton(
             text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
             callback_data="cancel_announcement"
         ))
-        
+
         buttons.append(nav_row)
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     async def _edit_message_with_navigation(self, message: Message, text: str, state: FSMContext, back_action=None, additional_buttons=None):
         """Редактирование сообщения с навигацией"""
         keyboard = self._create_navigation_keyboard(back_action, additional_buttons)
-        
+
         # Пытаемся отредактировать предыдущее сообщение
         try:
             # Удаляем сообщение пользователя
             await message.delete()
         except:
             pass
-            
+
         # Получаем данные состояния для ID сообщения
         data = await state.get_data()
-        
+
         if 'message_id' in data:
             try:
                 await message.bot.edit_message_text(
@@ -140,7 +140,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 return
             except:
                 pass
-        
+
         # Если редактирование не удалось, отправляем новое сообщение
         new_message = await message.answer(text, parse_mode='HTML', reply_markup=keyboard)
         await state.update_data(message_id=new_message.message_id)
@@ -149,7 +149,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка названия бота"""
         try:
             await state.update_data(bot_name=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_bot_function'),
@@ -165,7 +165,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка функционала бота"""
         try:
             await state.update_data(bot_function=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_solution_description'),
@@ -181,7 +181,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка описания функционала"""
         try:
             await state.update_data(solution_description=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_included_features'),
@@ -197,7 +197,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка списка включенных возможностей"""
         try:
             await state.update_data(included_features=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_client_requirements'),
@@ -213,7 +213,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка требований к клиенту"""
         try:
             await state.update_data(client_requirements=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_launch_time'),
@@ -229,7 +229,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка срока запуска"""
         try:
             await state.update_data(launch_time=message.text)
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_price'),
@@ -245,7 +245,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка цены"""
         try:
             await state.update_data(price=message.text)
-            
+
             # Создаем кнопки для выбора сложности
             complexity_buttons = [
                 [
@@ -263,7 +263,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                     )
                 ]
             ]
-            
+
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_complexity'),
@@ -284,10 +284,10 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 "complexity_medium": "Средняя",
                 "complexity_high": "Высокая"
             }
-            
+
             complexity = complexity_map.get(callback.data, "Низкая")
             await state.update_data(complexity=complexity)
-            
+
             # Создаем кнопку "Готово" для документов
             documents_buttons = [
                 [InlineKeyboardButton(
@@ -295,7 +295,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                     callback_data="documents_done"
                 )]
             ]
-            
+
             await callback.message.edit_text(
                 messages.get_message('announcement_creation', 'enter_documents'),
                 parse_mode='HTML',
@@ -311,7 +311,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         """Обработка навигации назад"""
         try:
             action = callback.data.replace("back_to_", "")
-            
+
             navigation_map = {
                 "bot_name": (AnnouncementForm.bot_name, 'enter_bot_name', "cancel_announcement"),
                 "bot_function": (AnnouncementForm.bot_function, 'enter_bot_function', "back_to_bot_name"),
@@ -322,10 +322,10 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 "price": (AnnouncementForm.price, 'enter_price', "back_to_launch_time"),
                 "complexity": (AnnouncementForm.complexity, 'enter_complexity', "back_to_price")
             }
-            
+
             if action in navigation_map:
                 new_state, message_key, back_action = navigation_map[action]
-                
+
                 additional_buttons = None
                 if action == "price":
                     # Для шага с ценой показываем кнопки сложности
@@ -353,14 +353,14 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                             callback_data="documents_done"
                         )]
                     ]
-                
+
                 await callback.message.edit_text(
                     messages.get_message('announcement_creation', message_key),
                     parse_mode='HTML',
                     reply_markup=self._create_navigation_keyboard(back_action, additional_buttons)
                 )
                 await state.set_state(new_state)
-            
+
             await callback.answer()
 
         except Exception as e:
@@ -563,7 +563,6 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
     async def _notify_moderators(self, message: Message, announcement: dict):
         """Уведомление модераторов о новом объявлении"""
-        print(f"Debug: Notifying moderators. Announcement data - ID: {announcement.get('id', 'N/A')}, Bot Name: {announcement.get('bot_name', 'N/A')}, Bot Function: {announcement.get('bot_function', 'N/A')}")
         try:
             # Format the created date if available, or use a default
             created_date = announcement.get('created_at', 'N/A')

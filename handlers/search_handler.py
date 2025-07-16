@@ -29,8 +29,6 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         self.router.callback_query(F.data.startswith("view_solution_"))(self.view_solution_details)
         # Обработчик отмены поиска
         self.router.callback_query(F.data == "cancel_search")(self.cancel_search)
-        # Обработчик возврата в меню
-        self.router.callback_query(F.data == "back_to_menu")(self.back_to_menu)
 
     async def start_search(self, callback: CallbackQuery, state: FSMContext):
         """Начало умного поиска AI-решений"""
@@ -127,15 +125,11 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 created_date=announcement_data['created_date'].strftime('%d.%m.%Y')
             )
 
-            # Создаем кнопки для связи и возврата
+            # Создаем кнопку для связи
             keyboard = [
                 [InlineKeyboardButton(
                     text=messages.get_message('search', 'buttons', 'contact_author'),
                     url=f"tg://user?id={announcement_data['user_id']}"
-                )],
-                [InlineKeyboardButton(
-                    text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                    callback_data="back_to_menu"
                 )]
             ]
 
@@ -145,6 +139,27 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 details_text,
                 parse_mode='HTML',
                 reply_markup=reply_markup
+            )
+            await callback.answer()
+
+        except Exception as e:
+            await callback.message.answer(
+                messages.get_message('search', 'search_error', error=str(e))
+            )
+
+    async def cancel_search(self, callback: CallbackQuery, state: FSMContext):
+        """Отмена поиска"""
+        try:
+            await state.clear()
+
+            # Возвращаем главное меню
+            from .start_handler import StartHandler
+            start_handler = StartHandler()
+            await start_handler.show_main_menu(callback.message)
+
+            await callback.message.answer(
+                messages.get_message('search', 'search_cancelled'),
+                parse_mode='HTML'
             )
             await callback.answer()
 
@@ -169,43 +184,6 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 'created_date': announcement.created_at
             }
         return None
-
-    async def cancel_search(self, callback: CallbackQuery, state: FSMContext):
-        """Отмена поиска"""
-        try:
-            await state.clear()
-
-            # Возвращаем главное меню
-            from .start_handler import StartHandler
-            start_handler = StartHandler()
-            await start_handler.show_main_menu(callback.message)
-
-            await callback.message.answer(
-                messages.get_message('search', 'search_cancelled'),
-                parse_mode='HTML'
-            )
-            await callback.answer()
-
-        except Exception as e:
-            await callback.message.answer(
-                messages.get_message('search', 'search_error', error=str(e))
-            )
-
-    async def back_to_menu(self, callback: CallbackQuery, state: FSMContext):
-        """Возврат в главное меню"""
-        try:
-            await state.clear()
-
-            # Возвращаем главное меню
-            from .start_handler import StartHandler
-            start_handler = StartHandler()
-            await start_handler.show_main_menu(callback.message)
-            await callback.answer()
-
-        except Exception as e:
-            await callback.message.answer(
-                messages.get_message('search', 'search_error', error=str(e))
-            )
 
     def _get_all_approved_announcements(self, session):
         """Получение всех одобренных объявлений для AI поиска"""
@@ -281,10 +259,6 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 [InlineKeyboardButton(
                     text=messages.get_message('search', 'buttons', 'contact_author'),
                     url=f"tg://user?id={solution['chat_id']}"
-                )],
-                [InlineKeyboardButton(
-                    text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                    callback_data="back_to_menu"
                 )]
             ]
         )
@@ -305,14 +279,6 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                     callback_data=f"view_solution_{result['id']}"
                 )
             ])
-
-        # Добавляем кнопку "В меню"
-        keyboard.append([
-            InlineKeyboardButton(
-                text=messages.get_message('search', 'buttons', 'back_to_menu'),
-                callback_data="back_to_menu"
-            )
-        ])
 
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
 

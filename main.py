@@ -19,11 +19,8 @@ async def main():
         # Инициализация бота и диспетчера
         bot = Bot(token=Config.BOT_TOKEN)
         dp = Dispatcher()
-        
-        # Debug check for loaded messages
-        print("Debug: Checking loaded messages at startup")
+
         messages.reload_messages()
-        print("Debug: Messages reloaded")
         
         # Настройка обработчиков
         main_router = setup_handlers()
