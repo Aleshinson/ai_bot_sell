@@ -487,7 +487,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -503,7 +503,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -519,7 +519,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -535,7 +535,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -551,7 +551,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -567,7 +567,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -583,7 +583,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 message,
                 self._generate_preview_text(await state.get_data()),
                 state,
-                "back_to_edit_menu",
+                None,
                 self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
@@ -606,7 +606,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await callback.message.edit_text(
                 self._generate_preview_text(await state.get_data()),
                 parse_mode='HTML',
-                reply_markup=self._create_navigation_keyboard("back_to_edit_menu", self._create_preview_buttons())
+                reply_markup=self._create_navigation_keyboard(None, self._create_preview_buttons())
             )
             await state.set_state(AnnouncementForm.documents)
             await callback.answer()
@@ -627,7 +627,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                     message,
                     self._generate_preview_text(await state.get_data()),
                     state,
-                    "back_to_edit_menu",
+                    None,
                     self._create_preview_buttons()
                 )
                 await state.set_state(AnnouncementForm.documents)
@@ -925,7 +925,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await callback.message.edit_text(
                 self._generate_preview_text(data),
                 parse_mode='HTML',
-                reply_markup=self._create_navigation_keyboard("back_to_edit_menu", self._create_preview_buttons())
+                reply_markup=self._create_navigation_keyboard(None, self._create_preview_buttons())
             )
             await state.set_state(AnnouncementForm.documents)
             await callback.answer()
@@ -1026,39 +1026,72 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
     async def _notify_moderators(self, message: Message, announcement: dict):
         """Уведомление модераторов о новом объявлении"""
         try:
-            created_date = announcement.get('created_at', 'N/A')
-            if created_date != 'N/A' and hasattr(created_date, 'strftime'):
-                created_date = created_date.strftime('%Y-%m-%d %H:%M:%S')
+            # Формируем список файлов
+            files_list = []
+            if announcement['documents']:
+                for i, doc in enumerate(announcement['documents'], 1):
+                    files_list.append(f"{i}. 📄 {doc['file_name']}")
+            if announcement['videos']:
+                for i, video in enumerate(announcement['videos'], len(announcement['documents']) + 1):
+                    files_list.append(f"{i}. 🎬 {video['file_name']}")
+            if announcement['demo_url']:
+                files_list.append(f"🌐 Демо-версия: {announcement['demo_url']}")
 
-            notification_text = messages.get_message(
-                'moderation', 'new_announcement_template',
-                announcement_id=announcement.get('id'),
-                bot_name=announcement.get('bot_name'),
-                bot_function=announcement.get('bot_function'),
-                solution_description=announcement.get('solution_description'),
-                included_features=announcement.get('included_features'),
-                client_requirements=announcement.get('client_requirements'),
-                launch_time=announcement.get('launch_time'),
-                price=announcement.get('price'),
-                complexity=announcement.get('complexity'),
-                username=announcement.get('user_id'),
-                created_date=created_date
+            # Формируем текст объявления с файлами
+            announcement_text = messages.get_message('moderation', 'new_announcement_template',
+                bot_name=announcement['bot_name'],
+                bot_function=announcement['bot_function'],
+                solution_description=announcement['solution_description'],
+                included_features=announcement['included_features'],
+                client_requirements=announcement['client_requirements'],
+                launch_time=announcement['launch_time'],
+                price=announcement['price'],
+                complexity=announcement['complexity'],
+                username=announcement['username'],
+                created_date=announcement['created_at'],
+                files_list="\n".join(files_list)
             )
+
+            # Создаем клавиатуру для модерации
+            keyboard = self._create_moderation_keyboard(announcement['id'], message.chat.id)
+
+            # Отправляем объявление и файлы модераторам
+            for moderator_id in self.moderator_ids:
+                try:
+                    # Отправляем текст объявления
+                    await message.bot.send_message(
+                        moderator_id,
+                        announcement_text,
+                        parse_mode='HTML',
+                        reply_markup=keyboard
+                    )
+
+                    # Отправляем сами файлы
+                    if announcement['documents']:
+                        for doc in announcement['documents']:
+                            try:
+                                await message.bot.send_document(
+                                    moderator_id,
+                                    doc['file_id']
+                                )
+                            except Exception as e:
+                                continue
+
+                    if announcement['videos']:
+                        for video in announcement['videos']:
+                            try:
+                                await message.bot.send_video(
+                                    moderator_id,
+                                    video['file_id']
+                                )
+                            except Exception as e:
+                                continue
+
+                except Exception as e:
+                    continue
+
         except Exception as e:
-            print(f"Error in get_message: {e}. Fallback to default message.")
-            notification_text = "Внутренняя ошибка: шаблон сообщения не доступен."
-        moderation_keyboard = self._create_moderation_keyboard(announcement.get('id', 0),
-                                                               announcement.get('chat_id', 0))
-        for mod_id in self.moderator_ids:
-            try:
-                await message.bot.send_message(
-                    mod_id,
-                    notification_text,
-                    parse_mode='HTML',
-                    reply_markup=moderation_keyboard
-                )
-            except Exception:
-                continue
+            await self.send_error_message(message, 'general_error', error=str(e))
 
     def _create_moderation_keyboard(self, announcement_id: int, chat_id: int) -> InlineKeyboardMarkup:
         """Создание клавиатуры для модерации"""

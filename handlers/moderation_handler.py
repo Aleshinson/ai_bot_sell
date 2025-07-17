@@ -253,6 +253,64 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 logger.error(f"Failed to send error message: {answer_error}")
                 
     # Приватные методы для работы с БД
+    async def _approve_announcement(self, announcement_id: int, moderator_id: int):
+        """Одобрение объявления"""
+        try:
+            # Получаем объявление
+            announcement = await self.db.get_announcement(announcement_id)
+            if not announcement:
+                raise ValueError("Объявление не найдено")
+
+            # Отправляем уведомление автору
+            await self.bot.send_message(
+                announcement['chat_id'],
+                messages.get_message('moderation', 'approval_notification',
+                    bot_name=announcement['bot_name']
+                ),
+                parse_mode='HTML'
+            )
+
+            # Отправляем уведомление модератору
+            await self.bot.send_message(
+                moderator_id,
+                messages.get_message('moderation', 'moderator_approval_notification',
+                    bot_name=announcement['bot_name'],
+                    bot_function=announcement['bot_function'],
+                    solution_description=announcement['solution_description'],
+                    included_features=announcement['included_features'],
+                    client_requirements=announcement['client_requirements'],
+                    launch_time=announcement['launch_time'],
+                    price=announcement['price'],
+                    complexity=announcement['complexity'],
+                    user_info=announcement.get('first_name', '') +
+                             (f" {announcement.get('last_name', '')}" if announcement.get('last_name') else '') +
+                             (f" @{announcement.get('username', '')}" if announcement.get('username') else '') +
+                             (f" {announcement['chat_id']}" if not announcement.get('username') else ''),
+                    created_date=announcement['created_at']
+                ),
+                parse_mode='HTML'
+            )
+
+            # Обновляем статус объявления
+            await self.db.update_announcement_status(
+                announcement_id,
+                'approved',
+                moderator_id=moderator_id
+            )
+
+            # Логируем одобрение
+            await self.db.log_moderation_action(
+                announcement_id,
+                moderator_id,
+                'approve'
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in _approve_announcement: {e}")
+            return False
+
     def _approve_announcement_in_db(self, session, announcement_id: int, moderator_id: int):
         """Одобрение объявления в БД"""
         announcement = self.get_announcement_by_id(session, announcement_id)
