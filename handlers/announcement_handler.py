@@ -993,14 +993,18 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         try:
             await state.clear()
 
-            await callback.message.edit_text(
-                "❌ <b>Создание объявления отменено</b>\n\n🏠 Возвращаемся в главное меню",
-                parse_mode='HTML'
-            )
-
+            # Возвращаем главное меню
             from .start_handler import StartHandler
             start_handler = StartHandler()
-            await start_handler.show_main_menu(callback.message)
+            keyboard = start_handler._create_main_menu_keyboard()
+            welcome_text = messages.get_message('start_command', 'welcome_message')
+
+            await callback.message.edit_text(
+                welcome_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            await callback.answer()
 
         except Exception as e:
             await self.send_error_message(callback, 'general_error', error=str(e))

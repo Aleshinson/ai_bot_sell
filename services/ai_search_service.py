@@ -171,3 +171,82 @@ class AISearchService:
             "results": results[:5],  # Максимум 5 результатов
             "explanation": f"Найдено {len(results)} решений по обычному поиску" if results else "Ничего не найдено"
         }
+
+    async def create_short_descriptions(self, announcements: List[Dict]) -> Dict[str, str]:
+        """
+        Создание коротких описаний для списка объявлений через GPT
+
+        Args:
+            announcements: Список объявлений
+
+        Returns:
+            Словарь {id: короткое_описание}
+        """
+        if not self.client:
+            # Если нет OpenAI API, возвращаем обрезанные описания
+            return {
+                str(ann['id']): ann['bot_function'][:50] + "..."
+                for ann in announcements
+            }
+
+        try:
+            # Подготавливаем данные для GPT
+            announcements_data = []
+            for ann in announcements:
+                announcements_data.append({
+                    "id": ann['id'],
+                    "name": ann['bot_name'],
+                    "description": ann['bot_function']
+                })
+
+            prompt = f"""
+    Создай короткие описания (максимум 60 символов) для следующих AI-решений.
+    Описание должно быть понятным и привлекательным для пользователя.
+    
+    Объявления:
+    {json.dumps(announcements_data, ensure_ascii=False, indent=2)}
+    
+    Верни результат в формате JSON:
+    {{
+        "1": "короткое описание для ID 1",
+        "2": "короткое описание для ID 2"
+    }}
+    
+    Требования:
+    - Максимум 60 символов
+    - Понятно и привлекательно
+    - Отражает суть решения
+    - На русском языке
+    """
+
+            response = await self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Ты эксперт по созданию кратких и привлекательных описаний AI-решений."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1000,
+                temperature=0.3
+            )
+
+            gpt_response = response.choices[0].message.content
+
+            # Очищаем ответ от markdown
+            clean_response = gpt_response.strip()
+            if clean_response.startswith("```json"):
+                clean_response = clean_response[7:]
+            if clean_response.endswith("```"):
+                clean_response = clean_response[:-3]
+            clean_response = clean_response.strip()
+
+            # Парсим JSON
+            short_descriptions = json.loads(clean_response)
+            return short_descriptions
+
+        except Exception as e:
+            print(f"Ошибка создания коротких описаний: {e}")
+            # Возвращаем обрезанные описания как fallback
+            return {
+                str(ann['id']): ann['bot_function'][:50] + "..."
+                for ann in announcements
+            }
