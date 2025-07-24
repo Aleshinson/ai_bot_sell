@@ -44,7 +44,8 @@ class StartHandler(BaseHandler):
             logger.error(f"Error displaying main menu: {str(e)}")
             await self.send_error_message(message, 'general_error', error=str(e))
 
-    def _create_main_menu_keyboard(self) -> InlineKeyboardMarkup:
+    @staticmethod
+    def _create_main_menu_keyboard() -> InlineKeyboardMarkup:
         """Создание клавиатуры главного меню"""
         buttons = [
             [InlineKeyboardButton(

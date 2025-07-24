@@ -30,7 +30,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         # Обработчик отмены поиска
         self.router.callback_query(F.data == "cancel_search")(self.cancel_search)
 
-    async def start_search(self, callback: CallbackQuery, state: FSMContext):
+    @staticmethod
+    async def start_search(callback: CallbackQuery, state: FSMContext):
         """Начало умного поиска AI-решений"""
         try:
             # Создаем кнопку отмены
@@ -147,7 +148,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
-    async def cancel_search(self, callback: CallbackQuery, state: FSMContext):
+    @staticmethod
+    async def cancel_search(callback: CallbackQuery, state: FSMContext):
         """Отмена поиска"""
         try:
             await state.clear()
@@ -168,7 +170,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
-    def _get_announcement_for_contact(self, session, announcement_id: int) -> dict:
+    @staticmethod
+    def _get_announcement_for_contact(session, announcement_id: int) -> dict:
         """Получение объявления для контакта"""
         announcement = session.query(Announcement).filter(
             Announcement.id == announcement_id,
@@ -185,7 +188,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             }
         return None
 
-    def _get_all_approved_announcements(self, session):
+    @staticmethod
+    def _get_all_approved_announcements(session):
         """Получение всех одобренных объявлений для AI поиска"""
         announcements = session.query(Announcement).filter(
             Announcement.is_approved == True
@@ -237,7 +241,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             # Если найдено несколько - показываем краткий список с кнопками выбора
             await self._send_solutions_list(message, results)
 
-    async def _send_detailed_solution(self, message: Message, solution: dict):
+    @staticmethod
+    async def _send_detailed_solution(message: Message, solution: dict):
         """Отправка детальной информации об одном решении"""
         ai_explanation = solution.get('ai_explanation', '')
         relevance_score = solution.get('relevance_score', 0)
@@ -269,7 +274,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             parse_mode='HTML'
         )
 
-    async def _send_solutions_list(self, message: Message, solutions: List[dict]):
+    @staticmethod
+    async def _send_solutions_list(message: Message, solutions: List[dict]):
         """Отправка списка решений с кнопками выбора"""
         keyboard = []
         for i, result in enumerate(solutions[:5], 1):  # Показываем максимум 5 результатов

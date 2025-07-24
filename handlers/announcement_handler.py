@@ -113,7 +113,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         except Exception as e:
             await self.send_error_message(callback, 'general_error', error=str(e))
 
-    def _create_navigation_keyboard(self, back_action=None, additional_buttons=None):
+    def _create_navigation_keyboard(self, back_action: str | None = None, additional_buttons: list | None = None):
         """Создание клавиатуры с навигацией"""
         buttons = []
 
