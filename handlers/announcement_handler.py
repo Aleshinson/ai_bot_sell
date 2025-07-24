@@ -9,7 +9,7 @@ import os
 
 
 class AnnouncementForm(StatesGroup):
-    """Состояния формы создания объявления"""
+    """Состояния формы создания объявления."""
     template_shown = State()
     bot_name = State()
     bot_function = State()
@@ -32,16 +32,17 @@ class AnnouncementForm(StatesGroup):
 
 
 class AnnouncementHandler(BaseHandler, DatabaseMixin):
-    """Обработчик создания объявлений"""
+    """Обработчик создания объявлений."""
 
     def __init__(self):
+        """Инициализация обработчика объявлений."""
         self.moderator_ids = getattr(Config, 'MODERATOR_IDS')
         super().__init__()
 
     def setup_handlers(self):
-        """Настройка обработчиков"""
-        self.router.callback_query(F.data == "add_announcement")(self.show_data_template)
-        self.router.callback_query(F.data == "start_filling")(self.start_announcement_creation)
+        """Настройка обработчиков."""
+        self.router.callback_query(F.data == 'add_announcement')(self.show_data_template)
+        self.router.callback_query(F.data == 'start_filling')(self.start_announcement_creation)
         self.router.message(AnnouncementForm.bot_name)(self.process_bot_name)
         self.router.message(AnnouncementForm.bot_function)(self.process_bot_function)
         self.router.message(AnnouncementForm.solution_description)(self.process_solution_description)
@@ -70,7 +71,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         self.router.message(AnnouncementForm.edit_documents)(self.process_edit_documents)
 
     async def show_data_template(self, callback: CallbackQuery, state: FSMContext):
-        """Показ шаблона данных перед началом заполнения"""
+        """Показ шаблона данных перед началом заполнения."""
         try:
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
@@ -95,7 +96,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def start_announcement_creation(self, callback: CallbackQuery, state: FSMContext):
-        """Начало создания объявления"""
+        """Начало создания объявления."""
         try:
             # Сохраняем ID сообщения для дальнейшего редактирования
             await state.update_data(message_id=callback.message.message_id)
@@ -114,7 +115,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     def _create_navigation_keyboard(self, back_action: str | None = None, additional_buttons: list | None = None):
-        """Создание клавиатуры с навигацией"""
+        """Создание клавиатуры с навигацией."""
         buttons = []
 
         if additional_buttons:
@@ -138,7 +139,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
     async def _edit_message_with_navigation(self, message: Message, text: str, state: FSMContext, back_action=None,
                                             additional_buttons=None):
-        """Редактирование сообщения с навигацией"""
+        """Редактирование сообщения с навигацией."""
         keyboard = self._create_navigation_keyboard(back_action, additional_buttons)
 
         # Пытаемся отредактировать предыдущее сообщение
@@ -169,7 +170,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         await state.update_data(message_id=new_message.message_id)
 
     async def process_bot_name(self, message: Message, state: FSMContext):
-        """Обработка названия бота"""
+        """Обработка названия бота."""
         try:
             await state.update_data(bot_name=message.text)
 
@@ -185,7 +186,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_bot_function(self, message: Message, state: FSMContext):
-        """Обработка функционала бота"""
+        """Обработка функционала бота."""
         try:
             await state.update_data(bot_function=message.text)
 
@@ -201,7 +202,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_solution_description(self, message: Message, state: FSMContext):
-        """Обработка описания функционала"""
+        """Обработка описания функционала."""
         try:
             await state.update_data(solution_description=message.text)
 
@@ -217,7 +218,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_included_features(self, message: Message, state: FSMContext):
-        """Обработка списка включенных возможностей"""
+        """Обработка списка включенных возможностей."""
         try:
             await state.update_data(included_features=message.text)
 
@@ -233,7 +234,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_client_requirements(self, message: Message, state: FSMContext):
-        """Обработка требований к клиенту"""
+        """Обработка требований к клиенту."""
         try:
             await state.update_data(client_requirements=message.text)
 
@@ -249,7 +250,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_launch_time(self, message: Message, state: FSMContext):
-        """Обработка срока запуска"""
+        """Обработка срока запуска."""
         try:
             await state.update_data(launch_time=message.text)
 
@@ -265,7 +266,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_price(self, message: Message, state: FSMContext):
-        """Обработка цены"""
+        """Обработка цены."""
         try:
             await state.update_data(price=message.text)
 
@@ -300,7 +301,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_complexity(self, callback: CallbackQuery, state: FSMContext):
-        """Обработка выбора сложности"""
+        """Обработка выбора сложности."""
         try:
             complexity_map = {
                 "complexity_low": "Низкая",
@@ -331,7 +332,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def show_edit_menu(self, callback: CallbackQuery, state: FSMContext):
-        """Показ меню редактирования"""
+        """Показ меню редактирования."""
         try:
             data = await state.get_data()
             documents_count = len(data.get('documents', [])) + len(data.get('videos', [])) + (
@@ -417,7 +418,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def handle_edit_field(self, callback: CallbackQuery, state: FSMContext):
-        """Обработка выбора поля для редактирования"""
+        """Обработка выбора поля для редактирования."""
         try:
             field = callback.data.replace("edit_field_", "")
             data = await state.get_data()
@@ -480,7 +481,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def process_edit_bot_name(self, message: Message, state: FSMContext):
-        """Обработка редактирования названия бота"""
+        """Обработка редактирования названия бота."""
         try:
             await state.update_data(bot_name=message.text)
             await self._edit_message_with_navigation(
@@ -496,7 +497,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_bot_function(self, message: Message, state: FSMContext):
-        """Обработка редактирования функционала бота"""
+        """Обработка редактирования функционала бота."""
         try:
             await state.update_data(bot_function=message.text)
             await self._edit_message_with_navigation(
@@ -512,7 +513,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_solution_description(self, message: Message, state: FSMContext):
-        """Обработка редактирования описания функционала"""
+        """Обработка редактирования описания функционала."""
         try:
             await state.update_data(solution_description=message.text)
             await self._edit_message_with_navigation(
@@ -528,7 +529,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_included_features(self, message: Message, state: FSMContext):
-        """Обработка редактирования списка включенных возможностей"""
+        """Обработка редактирования списка включенных возможностей."""
         try:
             await state.update_data(included_features=message.text)
             await self._edit_message_with_navigation(
@@ -544,7 +545,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_client_requirements(self, message: Message, state: FSMContext):
-        """Обработка редактирования требований к клиенту"""
+        """Обработка редактирования требований к клиенту."""
         try:
             await state.update_data(client_requirements=message.text)
             await self._edit_message_with_navigation(
@@ -560,7 +561,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_launch_time(self, message: Message, state: FSMContext):
-        """Обработка редактирования срока запуска"""
+        """Обработка редактирования срока запуска."""
         try:
             await state.update_data(launch_time=message.text)
             await self._edit_message_with_navigation(
@@ -576,7 +577,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_price(self, message: Message, state: FSMContext):
-        """Обработка редактирования цены"""
+        """Обработка редактирования цены."""
         try:
             await state.update_data(price=message.text)
             await self._edit_message_with_navigation(
@@ -592,7 +593,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_complexity(self, callback: CallbackQuery, state: FSMContext):
-        """Обработка редактирования сложности"""
+        """Обработка редактирования сложности."""
         try:
             complexity_map = {
                 "edit_complexity_low": "Низкая",
@@ -615,7 +616,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def process_edit_documents(self, message: Message, state: FSMContext):
-        """Обработка редактирования документов"""
+        """Обработка редактирования документов."""
         try:
             data = await state.get_data()
             documents = data.get('documents', [])
@@ -704,7 +705,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     def _format_documents(self, data: dict) -> str:
-        """Форматирование списка документов для отображения"""
+        """Форматирование списка документов для отображения."""
         documents_text = ""
         documents = data.get('documents', [])
         videos = data.get('videos', [])
@@ -730,7 +731,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         return documents_text if documents_text else "Не загружено"
 
     def _generate_preview_text(self, data: dict) -> str:
-        """Генерация текста превью"""
+        """Генерация текста превью."""
         documents_text = self._format_documents(data)
         return messages.get_message(
             'announcement_creation', 'preview_template',
@@ -746,7 +747,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         )
 
     def _create_preview_buttons(self) -> list:
-        """Создание кнопок для превью"""
+        """Создание кнопок для превью."""
         return [
             [
                 InlineKeyboardButton(
@@ -761,7 +762,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         ]
 
     async def handle_back_navigation(self, callback: CallbackQuery, state: FSMContext):
-        """Обработка навигации назад"""
+        """Обработка навигации назад."""
         try:
             action = callback.data.replace("back_to_", "")
 
@@ -837,7 +838,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def process_documents(self, message: Message, state: FSMContext):
-        """Обработка загрузки документов"""
+        """Обработка загрузки документов."""
         try:
             data = await state.get_data()
             documents = data.get('documents', [])
@@ -919,7 +920,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await state.clear()
 
     async def show_preview(self, callback: CallbackQuery, state: FSMContext):
-        """Показ превью объявления перед отправкой на модерацию"""
+        """Показ превью объявления перед отправкой на модерацию."""
         try:
             data = await state.get_data()
             await callback.message.edit_text(
@@ -934,7 +935,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def confirm_announcement(self, callback: CallbackQuery, state: FSMContext):
-        """Подтверждение отправки объявления на модерацию"""
+        """Подтверждение отправки объявления на модерацию."""
         try:
             data = await state.get_data()
             bot_name = data.get('bot_name')
@@ -989,7 +990,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     async def cancel_announcement(self, callback: CallbackQuery, state: FSMContext):
-        """Отмена создания объявления"""
+        """Отмена создания объявления."""
         try:
             await state.clear()
 
@@ -1014,7 +1015,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                                    included_features: str, client_requirements: str,
                                    launch_time: str, price: str, complexity: str,
                                    demo_url: str, documents: list, videos: list) -> dict:
-        """Создание объявления в базе данных"""
+        """Создание объявления в базе данных."""
         announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function,
                                                 solution_description, included_features, client_requirements,
                                                 launch_time, price, complexity, demo_url, documents, videos)
@@ -1038,7 +1039,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         }
 
     async def _notify_moderators(self, message: Message, announcement: dict):
-        """Уведомление модераторов о новом объявлении"""
+        """Уведомление модераторов о новом объявлении."""
         try:
             # Формируем список файлов
             files_list = []
@@ -1108,20 +1109,20 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(message, 'general_error', error=str(e))
 
     def _create_moderation_keyboard(self, announcement_id: int, chat_id: int) -> InlineKeyboardMarkup:
-        """Создание клавиатуры для модерации"""
+        """Создание клавиатуры для модерации."""
         buttons = [
             [
                 InlineKeyboardButton(
                     text=messages.get_button_text('moderation', 'approve'),
-                    callback_data=f"approve_{announcement_id}"
+                    callback_data=f'approve_{announcement_id}'
                 ),
                 InlineKeyboardButton(
                     text=messages.get_button_text('moderation', 'reject'),
-                    callback_data=f"reject_{announcement_id}"
+                    callback_data=f'reject_{announcement_id}'
                 ),
                 InlineKeyboardButton(
                     text=messages.get_button_text('moderation', 'contact'),
-                    url=f"tg://user?id={chat_id}"
+                    url=f'tg://user?id={chat_id}'
                 )
             ]
         ]

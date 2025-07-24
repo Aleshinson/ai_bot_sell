@@ -10,35 +10,43 @@ from typing import List
 
 
 class SearchForm(StatesGroup):
-    """Состояния формы поиска"""
+    """Состояния формы поиска."""
     search_query = State()
 
 
 class SearchHandler(BaseHandler, DatabaseMixin):
-    """Обработчик умного поиска AI-решений"""
+    """Обработчик умного поиска AI-решений."""
 
     def __init__(self):
+        """Инициализация обработчика поиска."""
         super().__init__()
         self.ai_search = AISearchService()
 
     def setup_handlers(self):
-        """Настройка обработчиков"""
-        self.router.callback_query(F.data == "search_announcements")(self.start_search)
+        """Настройка обработчиков."""
+        self.router.callback_query(F.data == 'search_announcements')(self.start_search)
         self.router.message(SearchForm.search_query)(self.process_search_query)
         # Обработчик для выбора конкретного решения
-        self.router.callback_query(F.data.startswith("view_solution_"))(self.view_solution_details)
+        self.router.callback_query(F.data.startswith('view_solution_'))(self.view_solution_details)
         # Обработчик отмены поиска
-        self.router.callback_query(F.data == "cancel_search")(self.cancel_search)
+        self.router.callback_query(F.data == 'cancel_search')(self.cancel_search)
+
 
     @staticmethod
     async def start_search(callback: CallbackQuery, state: FSMContext):
-        """Начало умного поиска AI-решений"""
+        """
+        Начало умного поиска AI-решений.
+        
+        Args:
+            callback: Объект обратного вызова
+            state: Контекст состояния FSM
+        """
         try:
             # Создаем кнопку отмены
             cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
                     text=messages.get_message('search', 'buttons', 'cancel'),
-                    callback_data="cancel_search"
+                    callback_data='cancel_search'
                 )]
             ])
 
@@ -55,8 +63,15 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     async def process_search_query(self, message: Message, state: FSMContext):
-        """Обработка поискового запроса с помощью AI"""
+        """
+        Обработка поискового запроса с помощью AI.
+        
+        Args:
+            message: Объект сообщения
+            state: Контекст состояния FSM
+        """
         try:
             search_query = message.text.strip()
 
@@ -68,7 +83,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 return
 
             # Показываем индикатор обработки
-            processing_msg = await message.answer("🤖 Анализирую ваш запрос...")
+            processing_msg = await message.answer('🤖 Анализирую ваш запрос...')
 
             # Получаем все одобренные объявления
             all_announcements = self.safe_db_operation(
@@ -77,7 +92,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
             if not all_announcements:
                 await processing_msg.edit_text(
-                    "😔 В базе пока нет одобренных AI-решений"
+                    '😔 В базе пока нет одобренных AI-решений'
                 )
                 await state.clear()
                 return
@@ -86,17 +101,17 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             search_result = await self.ai_search.smart_search(search_query, all_announcements)
 
             # Обновляем сообщение с результатами поиска
-            if not search_result["found"]:
+            if not search_result['found']:
                 # Если ничего не найдено - предлагаем перейти в чат
                 no_results_text = (
-                    "🔍 Подходящих объявлений не найдено\n\n"
-                    "💬 Вы можете перейти в чат и посмотреть то, что имеется у нас"
+                    '🔍 Подходящих объявлений не найдено\n\n'
+                    '💬 Вы можете перейти в чат и посмотреть то, что имеется у нас'
                 )
 
                 # Добавляем кнопку перехода в чат
                 chat_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(
-                        text="💬 Перейти в чат",
+                        text='💬 Перейти в чат',
                         url=self.get_chat_url()
                     )]
                 ])
@@ -107,7 +122,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                     parse_mode='HTML'
                 )
             else:
-                results = search_result["results"]
+                results = search_result['results']
 
                 if len(results) == 1:
                     # Если найдено одно объявление - показываем его полностью
@@ -123,10 +138,16 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     async def view_solution_details(self, callback: CallbackQuery):
-        """Просмотр детальной информации о решении"""
+        """
+        Просмотр детальной информации о решении.
+        
+        Args:
+            callback: Объект обратного вызова
+        """
         try:
-            solution_id = int(callback.data.split("_")[-1])
+            solution_id = int(callback.data.split('_')[-1])
 
             # Получаем полную информацию о решении из БД
             announcement_data = self.safe_db_operation(
@@ -148,8 +169,15 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     async def _show_full_announcement(self, message: Message, announcement: dict):
-        """Показать полное объявление"""
+        """
+        Показать полное объявление.
+        
+        Args:
+            message: Объект сообщения
+            announcement: Словарь с данными объявления
+        """
         try:
             # Форматируем полную информацию об объявлении
             full_text = (
@@ -197,8 +225,15 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     async def _show_announcements_list(self, message: Message, announcements: List[dict]):
-        """Показать список объявлений одним сообщением с кнопками"""
+        """
+        Показать список объявлений одним сообщением с кнопками.
+        
+        Args:
+            message: Объект сообщения
+            announcements: Список объявлений
+        """
         try:
             # Создаем короткие описания через GPT
             short_descriptions = await self.ai_search.create_short_descriptions(announcements)
@@ -211,8 +246,10 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
             for i, announcement in enumerate(announcements[:10], 1):  # Максимум 10 результатов
                 # Получаем короткое описание от GPT или fallback
-                short_desc = short_descriptions.get(str(announcement['id']),
-                                                    announcement['bot_function'][:50] + "...")
+                short_desc = short_descriptions.get(
+                    str(announcement['id']),
+                    announcement['bot_function'][:50] + '...'
+                )
 
                 # Добавляем в текст списка
                 list_text += f"{i}. <b>{announcement['bot_name']}</b>\n"
@@ -241,9 +278,16 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     @staticmethod
     async def cancel_search(callback: CallbackQuery, state: FSMContext):
-        """Отмена поиска"""
+        """
+        Отмена поиска.
+        
+        Args:
+            callback: Объект обратного вызова
+            state: Контекст состояния FSM
+        """
         try:
             await state.clear()
 
@@ -265,15 +309,30 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 messages.get_message('search', 'search_error', error=str(e))
             )
 
+
     @staticmethod
     def get_chat_url():
-        """Получение URL чата из переменной окружения"""
+        """
+        Получение URL чата из переменной окружения.
+        
+        Returns:
+            URL чата
+        """
         from config import Config
         return Config.CHAT_URL
 
+
     @staticmethod
     def _get_all_approved_announcements(session):
-        """Получение всех одобренных объявлений для AI поиска"""
+        """
+        Получение всех одобренных объявлений для AI поиска.
+        
+        Args:
+            session: Сессия базы данных
+            
+        Returns:
+            Список одобренных объявлений
+        """
         announcements = session.query(Announcement).filter(
             Announcement.is_approved == True
         ).order_by(Announcement.created_at.desc()).all()
@@ -297,9 +356,19 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             for ann in announcements
         ]
 
+
     @staticmethod
     def _get_full_announcement_by_id(session, announcement_id: int):
-        """Получение полной информации об объявлении по ID"""
+        """
+        Получение полной информации об объявлении по ID.
+        
+        Args:
+            session: Сессия базы данных
+            announcement_id: ID объявления
+            
+        Returns:
+            Словарь с данными объявления или None
+        """
         announcement = session.query(Announcement).filter(
             Announcement.id == announcement_id,
             Announcement.is_approved == True

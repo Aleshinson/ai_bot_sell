@@ -5,14 +5,16 @@ from config import Config
 
 
 class AISearchService:
-    """Сервис для умного поиска AI-решений с помощью GPT"""
+    """Сервис для умного поиска AI-решений с помощью GPT."""
 
     def __init__(self):
+        """Инициализация сервиса поиска."""
         self.client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else None
+
 
     async def smart_search(self, user_query: str, announcements: List[Dict]) -> Dict:
         """
-        Умный поиск AI-решений с помощью GPT
+        Умный поиск AI-решений с помощью GPT.
 
         Args:
             user_query: Запрос пользователя
@@ -34,9 +36,9 @@ class AISearchService:
             # Подготавливаем данные для GPT
             announcements_json = json.dumps([
                 {
-                    "id": ann["id"],
-                    "bot_name": ann["bot_name"],
-                    "bot_function": ann["bot_function"]
+                    'id': ann['id'],
+                    'bot_name': ann['bot_name'],
+                    'bot_function': ann['bot_function']
                 }
                 for ann in announcements
             ], ensure_ascii=False, indent=2)
@@ -49,12 +51,12 @@ class AISearchService:
                 model="gpt-4o-mini",
                 messages=[
                     {
-                        "role": "system",
-                        "content": "Ты - эксперт по AI-решениям. Помогаешь пользователям найти подходящие AI-боты и решения."
+                        'role': 'system',
+                        'content': 'Ты - эксперт по AI-решениям. Помогаешь пользователям найти подходящие AI-боты и решения.'
                     },
                     {
-                        "role": "user",
-                        "content": prompt
+                        'role': 'user',
+                        'content': prompt
                     }
                 ],
                 temperature=0.3,
@@ -70,8 +72,18 @@ class AISearchService:
             # Fallback на обычный поиск при ошибке
             return self._fallback_search(user_query, announcements)
 
+
     def _create_search_prompt(self, user_query: str, announcements_json: str) -> str:
-        """Создание промпта для GPT"""
+        """
+        Создание промпта для GPT.
+        
+        Args:
+            user_query: Запрос пользователя
+            announcements_json: JSON строка с объявлениями
+            
+        Returns:
+            Строка промпта для GPT
+        """
         return f"""
 Пользователь ищет AI-решение с запросом: "{user_query}"
 
@@ -102,79 +114,100 @@ class AISearchService:
 6. Отвечай ТОЛЬКО JSON, без дополнительного текста
 """
 
+
     def _parse_gpt_response(self, gpt_response: str, announcements: List[Dict]) -> Dict:
-        """Парсинг ответа GPT и формирование результата"""
+        """
+        Парсинг ответа GPT и формирование результата.
+        
+        Args:
+            gpt_response: Ответ от GPT
+            announcements: Список объявлений
+            
+        Returns:
+            Словарь с результатами поиска
+        """
         try:
             # Очищаем ответ от возможных markdown блоков
             clean_response = gpt_response.strip()
-            if clean_response.startswith("```json"):
+            if clean_response.startswith('```json'):
                 clean_response = clean_response[7:]
-            if clean_response.endswith("```"):
+            if clean_response.endswith('```'):
                 clean_response = clean_response[:-3]
             clean_response = clean_response.strip()
 
             # Парсим JSON
             parsed = json.loads(clean_response)
 
-            if not parsed.get("found", False) or not parsed.get("results"):
+            if not parsed.get('found', False) or not parsed.get('results'):
                 return {
-                    "found": False,
-                    "results": [],
-                    "explanation": parsed.get("general_explanation", "По вашему запросу ничего не найдено")
+                    'found': False,
+                    'results': [],
+                    'explanation': parsed.get('general_explanation', 'По вашему запросу ничего не найдено')
                 }
 
             # Находим полные данные объявлений по ID
-            announcement_map = {ann["id"]: ann for ann in announcements}
+            announcement_map = {ann['id']: ann for ann in announcements}
             full_results = []
 
-            for result in parsed["results"]:
-                ann_id = result["id"]
+            for result in parsed['results']:
+                ann_id = result['id']
                 if ann_id in announcement_map:
                     full_ann = announcement_map[ann_id].copy()
-                    full_ann["relevance_score"] = result["relevance_score"]
-                    full_ann["ai_explanation"] = result["explanation"]
+                    full_ann['relevance_score'] = result['relevance_score']
+                    full_ann['ai_explanation'] = result['explanation']
                     full_results.append(full_ann)
 
             return {
-                "found": True,
-                "results": full_results,
-                "explanation": parsed.get("general_explanation", "Найдены подходящие AI-решения")
+                'found': True,
+                'results': full_results,
+                'explanation': parsed.get('general_explanation', 'Найдены подходящие AI-решения')
             }
 
         except json.JSONDecodeError as e:
             print(f"Ошибка парсинга JSON от GPT: {e}")
             print(f"Ответ GPT: {gpt_response}")
-            return self._fallback_search("", announcements)
+            return self._fallback_search('', announcements)
         except Exception as e:
             print(f"Ошибка обработки ответа GPT: {e}")
-            return self._fallback_search("", announcements)
+            return self._fallback_search('', announcements)
+
 
     def _fallback_search(self, user_query: str, announcements: List[Dict]) -> Dict:
-        """Обычный поиск как fallback"""
+        """
+        Обычный поиск как fallback.
+        
+        Args:
+            user_query: Запрос пользователя
+            announcements: Список объявлений
+            
+        Returns:
+            Словарь с результатами поиска
+        """
         if not user_query:
             return {
-                "found": False,
-                "results": [],
-                "explanation": "Введите поисковый запрос"
+                'found': False,
+                'results': [],
+                'explanation': 'Введите поисковый запрос'
             }
 
         query_lower = user_query.lower()
         results = []
 
         for ann in announcements:
-            if (query_lower in ann["bot_name"].lower() or
-                query_lower in ann["bot_function"].lower()):
+            if (query_lower in ann['bot_name'].lower() or
+                query_lower in ann['bot_function'].lower()):
                 results.append(ann)
 
         return {
-            "found": len(results) > 0,
-            "results": results[:5],  # Максимум 5 результатов
-            "explanation": f"Найдено {len(results)} решений по обычному поиску" if results else "Ничего не найдено"
+            'found': len(results) > 0,
+            'results': results[:5],  # Максимум 5 результатов
+            'explanation': f'Найдено {len(results)} решений по обычному поиску' if results else 'Ничего не найдено'
         }
+
 
     async def create_short_descriptions(self, announcements: List[Dict]) -> Dict[str, str]:
         """
-        Создание коротких описаний для списка объявлений через GPT
+        Создание коротких описаний для списка объявлений через GPT.
 
         Args:
             announcements: Список объявлений
@@ -185,7 +218,7 @@ class AISearchService:
         if not self.client:
             # Если нет OpenAI API, возвращаем обрезанные описания
             return {
-                str(ann['id']): ann['bot_function'][:50] + "..."
+                str(ann['id']): ann['bot_function'][:50] + '...'
                 for ann in announcements
             }
 
@@ -194,9 +227,9 @@ class AISearchService:
             announcements_data = []
             for ann in announcements:
                 announcements_data.append({
-                    "id": ann['id'],
-                    "name": ann['bot_name'],
-                    "description": ann['bot_function']
+                    'id': ann['id'],
+                    'name': ann['bot_name'],
+                    'description': ann['bot_function']
                 })
 
             prompt = f"""
@@ -220,10 +253,10 @@ class AISearchService:
     """
 
             response = await self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "Ты эксперт по созданию кратких и привлекательных описаний AI-решений."},
-                    {"role": "user", "content": prompt}
+                    {'role': 'system', 'content': 'Ты эксперт по созданию кратких и привлекательных описаний AI-решений.'},
+                    {'role': 'user', 'content': prompt}
                 ],
                 max_tokens=1000,
                 temperature=0.3
@@ -233,9 +266,9 @@ class AISearchService:
 
             # Очищаем ответ от markdown
             clean_response = gpt_response.strip()
-            if clean_response.startswith("```json"):
+            if clean_response.startswith('```json'):
                 clean_response = clean_response[7:]
-            if clean_response.endswith("```"):
+            if clean_response.endswith('```'):
                 clean_response = clean_response[:-3]
             clean_response = clean_response.strip()
 
@@ -247,6 +280,6 @@ class AISearchService:
             print(f"Ошибка создания коротких описаний: {e}")
             # Возвращаем обрезанные описания как fallback
             return {
-                str(ann['id']): ann['bot_function'][:50] + "..."
+                str(ann['id']): ann['bot_function'][:50] + '...'
                 for ann in announcements
             }

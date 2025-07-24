@@ -4,26 +4,39 @@ from .base import BaseHandler
 from utils import messages
 import logging
 
+
 # Используем логгер для модуля handlers
 logger = logging.getLogger('handlers')
 
 
 class StartHandler(BaseHandler):
-    """Обработчик стартовой команды и основного меню"""
+    """Обработчик стартовой команды и основного меню."""
 
     def setup_handlers(self):
-        """Настройка обработчиков"""
+        """Настройка обработчиков."""
         self.router.message(Command("start"))(self.start_command)
 
+
     async def start_command(self, message: Message):
-        """Обработка команды /start"""
+        """
+        Обработка команды /start.
+        
+        Args:
+            message: Объект сообщения
+        """
         try:
             await self.show_main_menu(message)
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
 
+
     async def show_main_menu(self, message: Message):
-        """Отправка главного меню с кнопками"""
+        """
+        Отправка главного меню с кнопками.
+        
+        Args:
+            message: Объект сообщения
+        """
         try:
             keyboard = self._create_main_menu_keyboard()
             welcome_text = messages.get_message('start_command', 'welcome_message')
@@ -44,9 +57,15 @@ class StartHandler(BaseHandler):
             logger.error(f"Error displaying main menu: {str(e)}")
             await self.send_error_message(message, 'general_error', error=str(e))
 
+
     @staticmethod
     def _create_main_menu_keyboard() -> InlineKeyboardMarkup:
-        """Создание клавиатуры главного меню"""
+        """
+        Создание клавиатуры главного меню.
+        
+        Returns:
+            Объект клавиатуры с кнопками главного меню
+        """
         buttons = [
             [InlineKeyboardButton(
                 text=messages.get_button_text('start_command', 'go_to_chat'),
@@ -54,11 +73,11 @@ class StartHandler(BaseHandler):
             )],
             [InlineKeyboardButton(
                 text=messages.get_button_text('start_command', 'add_announcement'),
-                callback_data="add_announcement"
+                callback_data='add_announcement'
             )],
             [InlineKeyboardButton(
                 text=messages.get_button_text('start_command', 'search_announcements'),
-                callback_data="search_announcements"
+                callback_data='search_announcements'
             )]
         ]
 
