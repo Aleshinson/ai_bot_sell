@@ -968,10 +968,20 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
             await self._notify_moderators(callback.message, announcement)
 
-            await callback.message.edit_text(
-                messages.get_message('announcement_creation', 'announcement_sent'),
-                parse_mode='HTML'
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=messages.get_button_text('moderation', 'back_to_menu'),
+                        callback_data='main_menu'
+                    )]
+                ]
             )
+
+            await callback.message.edit_text(
+                messages.get_message('announcement_creation', 'announcement_sent').format(bot_name=announcement['bot_name']),
+                keyboard=keyboard,
+                parse_mode='HTML'
+                )
 
             await state.clear()
 
@@ -1047,7 +1057,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 launch_time=announcement['launch_time'],
                 price=announcement['price'],
                 complexity=announcement['complexity'],
-                username=announcement['username'],
+                user_info=f"Пользователь ID: {announcement['user_id']}",
                 created_date=announcement['created_at'],
                 files_list="\n".join(files_list)
             )

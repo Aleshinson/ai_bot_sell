@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, create_engine
+from sqlalchemy import Column, BigInteger, Integer, String, DateTime, Boolean, Text, JSON, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from config import Config
 import datetime
@@ -11,8 +11,8 @@ class Announcement(Base):
     __tablename__ = 'announcements'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
-    chat_id = Column(Integer, nullable=False)
+    user_id = Column(BigInteger, nullable=False)
+    chat_id = Column(BigInteger, nullable=False)
     bot_name = Column(String(255), nullable=False)
     bot_function = Column(String(255), nullable=False)
     solution_description = Column(Text, nullable=False)

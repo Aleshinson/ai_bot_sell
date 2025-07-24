@@ -12,6 +12,7 @@ import logging
 # Используем логгер для модуля handlers
 logger = logging.getLogger('handlers')
 
+
 class ModerationForm(StatesGroup):
     """Состояния формы модерации"""
     comment = State()
@@ -21,7 +22,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     """Обработчик модерации объявлений"""
 
     def __init__(self):
-        self.moderator_ids: List[int] = getattr(Config, 'MODERATOR_IDS', [454590867, 591273485, 1146006262])
+        self.moderator_ids: List[int] = getattr(Config, 'MODERATOR_IDS')
         super().__init__()
 
     def setup_handlers(self):
@@ -68,7 +69,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             await self._notify_user_approval(callback.message, announcement)
 
             # Уведомление других модераторов
-            await self._notify_other_moderators(callback, announcement_id, moderator_id, approved=True)
+            await self._notify_other_moderators(callback, moderator_id, approved=True, announcement=announcement)
 
             # Обновление сообщения модератора
             await self._update_moderator_message(callback, announcement, approved=True)
@@ -98,20 +99,20 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             )
             
             if not announcement:
-                await callback.message.answer(
+                await callback.message.edit_text(
                     messages.get_message('moderation', 'announcement_not_found'),
                     parse_mode='HTML'
                 )
                 return
             
             if not announcement['is_pending']:
-                await callback.message.answer(
+                await callback.message.edit_text(
                     messages.get_message('moderation', 'already_processed'),
                     parse_mode='HTML'
                 )
                 return
             
-            await callback.message.answer(
+            await callback.message.edit_text(
                 messages.get_message('moderation', 'rejection_reason_request'),
                 parse_mode='HTML'
             )
@@ -141,7 +142,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             )
 
             if not result:
-                await message.answer(
+                await message.edit_text(
                     messages.get_message('moderation', 'announcement_not_found'),
                     parse_mode='HTML'
                 )
@@ -149,7 +150,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 return
 
             if result.get('already_processed'):
-                await message.answer(
+                await message.edit_text(
                     messages.get_message('moderation', 'already_processed'),
                     parse_mode='HTML'
                 )
@@ -162,13 +163,14 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             await self._notify_user_rejection(message, announcement, comment)
 
             # Уведомляем других модераторов
-            await self._notify_other_moderators_rejection(message, announcement_id, moderator_id, comment)
+            await self._notify_other_moderators_rejection(message, moderator_id, comment, announcement)
 
             await message.answer(
                 messages.get_message('moderation', 'rejected_by_moderator',
                                      announcement_id=announcement_id,
                                      moderator_id=moderator_id,
-                                     comment=comment),
+                                     comment=comment,
+                                     bot_name=announcement['bot_name']),
                 parse_mode='HTML',
                 reply_markup=self._create_contact_keyboard(announcement['chat_id'])
             )
@@ -235,7 +237,8 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
 
         await state.clear()
 
-    async def back_to_menu(self, callback: CallbackQuery):
+    @staticmethod
+    async def back_to_menu(callback: CallbackQuery):
         """Обработчик кнопки 'В меню'"""
         try:
             start_handler = StartHandler()
@@ -251,65 +254,6 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 )
             except Exception as answer_error:
                 logger.error(f"Failed to send error message: {answer_error}")
-                
-    # Приватные методы для работы с БД
-    async def _approve_announcement(self, announcement_id: int, moderator_id: int):
-        """Одобрение объявления"""
-        try:
-            # Получаем объявление
-            announcement = await self.db.get_announcement(announcement_id)
-            if not announcement:
-                raise ValueError("Объявление не найдено")
-
-            # Отправляем уведомление автору
-            await self.bot.send_message(
-                announcement['chat_id'],
-                messages.get_message('moderation', 'approval_notification',
-                    bot_name=announcement['bot_name']
-                ),
-                parse_mode='HTML'
-            )
-
-            # Отправляем уведомление модератору
-            await self.bot.send_message(
-                moderator_id,
-                messages.get_message('moderation', 'moderator_approval_notification',
-                    bot_name=announcement['bot_name'],
-                    bot_function=announcement['bot_function'],
-                    solution_description=announcement['solution_description'],
-                    included_features=announcement['included_features'],
-                    client_requirements=announcement['client_requirements'],
-                    launch_time=announcement['launch_time'],
-                    price=announcement['price'],
-                    complexity=announcement['complexity'],
-                    user_info=announcement.get('first_name', '') +
-                             (f" {announcement.get('last_name', '')}" if announcement.get('last_name') else '') +
-                             (f" @{announcement.get('username', '')}" if announcement.get('username') else '') +
-                             (f" {announcement['chat_id']}" if not announcement.get('username') else ''),
-                    created_date=announcement['created_at']
-                ),
-                parse_mode='HTML'
-            )
-
-            # Обновляем статус объявления
-            await self.db.update_announcement_status(
-                announcement_id,
-                'approved',
-                moderator_id=moderator_id
-            )
-
-            # Логируем одобрение
-            await self.db.log_moderation_action(
-                announcement_id,
-                moderator_id,
-                'approve'
-            )
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error in _approve_announcement: {e}")
-            return False
 
     def _approve_announcement_in_db(self, session, announcement_id: int, moderator_id: int):
         """Одобрение объявления в БД"""
@@ -329,8 +273,15 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
         return {
             'id': announcement.id,
             'chat_id': announcement.chat_id,
+            'user_id': announcement.user_id,
             'bot_name': announcement.bot_name,
             'bot_function': announcement.bot_function,
+            'solution_description': announcement.solution_description,
+            'included_features': announcement.included_features,
+            'client_requirements': announcement.client_requirements,
+            'launch_time': announcement.launch_time,
+            'price': announcement.price,
+            'complexity': announcement.complexity,
             'created_at': announcement.created_at
         }
     
@@ -391,8 +342,8 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             'created_at': announcement.created_at
         }
 
-    # Приватные методы для уведомлений
-    async def _notify_user_approval(self, message: Message, announcement: dict):
+    @staticmethod
+    async def _notify_user_approval(message: Message, announcement: dict):
         """Уведомление пользователя об одобрении объявления"""
         try:
             # Создаем клавиатуру с кнопкой "В меню"
@@ -419,22 +370,22 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 parse_mode='HTML'
             )
 
-    async def _notify_user_rejection(self, message: Message, announcement: dict, comment: str):
+    @staticmethod
+    async def _notify_user_rejection(message: Message, announcement: dict, comment: str):
         """Уведомление пользователя об отклонении"""
         try:
             await message.bot.send_message(
                 announcement['chat_id'],
                 messages.get_message('moderation', 'rejection_notification',
-                                   announcement_id=announcement.get('id', 'unknown'),
-                                   bot_name=announcement.get('bot_name', 'Неизвестно'),
+                                   announcement_id=announcement.get('id'),
+                                   bot_name=announcement.get('bot_name'),
                                    comment=comment),
                 parse_mode='HTML'
             )
         except Exception as e:
             print(f"Не удалось уведомить пользователя об отклонении: {e}")
 
-    async def _notify_other_moderators(self, callback: CallbackQuery, announcement_id: int,
-                                     moderator_id: int, approved: bool):
+    async def _notify_other_moderators(self, callback: CallbackQuery, moderator_id: int, approved: bool, announcement: dict):
         """Уведомление других модераторов"""
         message_key = 'approved_by_moderator' if approved else 'rejected_by_moderator'
 
@@ -443,26 +394,20 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 try:
                     await callback.message.bot.send_message(
                         mod_id,
-                        messages.get_message('moderation', message_key,
-                                           announcement_id=announcement_id,
-                                           moderator_id=moderator_id),
+                        messages.get_message('moderation', message_key, moderator_id=moderator_id, bot_name=announcement.get('bot_name')),
                         parse_mode='HTML'
                     )
                 except Exception:
                     continue
 
-    async def _notify_other_moderators_rejection(self, message: Message, announcement_id: int,
-                                               moderator_id: int, comment: str):
+    async def _notify_other_moderators_rejection(self, message: Message, moderator_id: int, comment: str, announcement: dict):
         """Уведомление других модераторов об отклонении"""
         for mod_id in self.moderator_ids:
             if mod_id != moderator_id:
                 try:
                     await message.bot.send_message(
                         mod_id,
-                        messages.get_message('moderation', 'rejected_by_moderator',
-                                           announcement_id=announcement_id,
-                                           moderator_id=moderator_id,
-                                           comment=comment),
+                        messages.get_message('moderation', 'rejected_by_moderator', moderator_id=moderator_id, comment=comment, bot_name=announcement['bot_name']),
                         parse_mode='HTML'
                     )
                 except Exception:
@@ -472,21 +417,28 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
         """Обновление сообщения модератора"""
         if approved:
             await callback.message.edit_text(
-                messages.get_message('moderation', 'approval_notification',
-                                   announcement_id=announcement['id'],
-                                   bot_name=announcement.get('bot_name', 'Unknown'),
-                                   bot_function=announcement.get('bot_function', 'Not specified')),
+                messages.get_message('moderation', 'moderator_approval_notification',
+                                     bot_name=announcement['bot_name'],
+                                     bot_function=announcement['bot_function'],
+                                     solution_description=announcement['solution_description'],
+                                     included_features=announcement['included_features'],
+                                     client_requirements=announcement['client_requirements'],
+                                     launch_time=announcement['launch_time'],
+                                     price=announcement['price'],
+                                     complexity=announcement['complexity'],
+                                     user_info=f"Пользователь ID: {announcement['user_id']}",
+                                     created_date=announcement['created_at']),
+
                 parse_mode='HTML',
                 reply_markup=self._create_contact_keyboard(announcement['chat_id'])
             )
 
-    def _create_contact_keyboard(self, chat_id: int) -> InlineKeyboardMarkup:
+    @staticmethod
+    def _create_contact_keyboard(chat_id: int) -> InlineKeyboardMarkup:
         """Создание клавиатуры для связи с пользователем"""
         return InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=messages.get_button_text('moderation', 'contact'),
-                    url=f"tg://user?id={chat_id}"
-                )]
+                [InlineKeyboardButton(text=messages.get_button_text('moderation', 'back_to_menu'), callback_data='main_menu')],
+                [InlineKeyboardButton(text=messages.get_button_text('moderation', 'contact'), url=f"tg://user?id={chat_id}")]
             ]
         )
