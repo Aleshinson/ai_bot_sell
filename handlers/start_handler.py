@@ -15,13 +15,12 @@ class StartHandler(BaseHandler):
     def setup_handlers(self):
         """Настройка обработчиков."""
         self.router.message(Command("start"))(self.start_command)
-        self.router.message(Command("chat_id"))(self.get_chat_id)
 
 
     async def start_command(self, message: Message):
         """
         Обработка команды /start.
-        
+
         Args:
             message: Объект сообщения
         """
@@ -34,26 +33,26 @@ class StartHandler(BaseHandler):
     async def show_main_menu(self, message: Message):
         """
         Отправка главного меню с кнопками.
-        
+
         Args:
             message: Объект сообщения
         """
         try:
             keyboard = self._create_main_menu_keyboard()
             welcome_text = messages.get_message('start_command', 'welcome_message')
-            
+
             # Удаляем предыдущее сообщение если возможно
             try:
                 await message.delete()
             except Exception:
                 pass  # Игнорируем ошибки удаления
-                
+
             await message.answer(
                 welcome_text,
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
-            
+
         except Exception as e:
             logger.error(f"Error displaying main menu: {str(e)}")
             await self.send_error_message(message, 'general_error', error=str(e))
@@ -63,7 +62,7 @@ class StartHandler(BaseHandler):
     def _create_main_menu_keyboard() -> InlineKeyboardMarkup:
         """
         Создание клавиатуры главного меню.
-        
+
         Returns:
             Объект клавиатуры с кнопками главного меню
         """
@@ -83,12 +82,3 @@ class StartHandler(BaseHandler):
         ]
 
         return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
-    async def get_chat_id(self, message: Message):
-        """Показывает ID текущего чата."""
-        await message.reply(
-            f"ID текущего чата: {message.chat.id}\n"
-            f"Тип чата: {message.chat.type}\n"
-            f"Название чата: {message.chat.title if message.chat.title else 'Личный чат'}"
-        )
