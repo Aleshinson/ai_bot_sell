@@ -15,6 +15,7 @@ class StartHandler(BaseHandler):
     def setup_handlers(self):
         """Настройка обработчиков."""
         self.router.message(Command("start"))(self.start_command)
+        self.router.message(Command("chat_id"))(self.get_chat_id)
 
 
     async def start_command(self, message: Message):
@@ -82,3 +83,12 @@ class StartHandler(BaseHandler):
         ]
 
         return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+    async def get_chat_id(self, message: Message):
+        """Показывает ID текущего чата."""
+        await message.reply(
+            f"ID текущего чата: {message.chat.id}\n"
+            f"Тип чата: {message.chat.type}\n"
+            f"Название чата: {message.chat.title if message.chat.title else 'Личный чат'}"
+        )
