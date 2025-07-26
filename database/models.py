@@ -19,7 +19,7 @@ class Announcement(Base):
     client_requirements = Column(Text, nullable=False)
     launch_time = Column(String(50), nullable=False)  # Срок запуска
     price = Column(String(100), nullable=False)      # Цена
-    complexity = Column(String(50), nullable=False)  # Сложность
+    complexity = Column(Text, nullable=False)  # Сложность
     demo_url = Column(String(2048), nullable=True)  # Ссылка на демо
     documents = Column(JSON, nullable=True)  # JSON с информацией о документах
     videos = Column(JSON, nullable=True)  # JSON с информацией о видео
