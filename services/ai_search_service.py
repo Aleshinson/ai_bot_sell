@@ -38,7 +38,7 @@ class AISearchService:
                 {
                     'id': ann['id'],
                     'bot_name': ann['bot_name'],
-                    'bot_function': ann['bot_function']
+                    'task_solution': ann['task_solution']
                 }
                 for ann in announcements
             ], ensure_ascii=False, indent=2)
@@ -98,11 +98,11 @@ class AISearchService:
     "results": [
         {{
             "id": номер_id,
-            "relevance_score": оценка_от_1_до_10,
-            "explanation": "краткое объяснение почему подходит"
+            "bot_name": "название",
+            "task_solution": "описание задачи и решения"
         }}
     ],
-    "general_explanation": "общее объяснение результатов поиска"
+    "explanation": "объяснение выбора"
 }}
 
 Требования:
@@ -142,7 +142,7 @@ class AISearchService:
                 return {
                     'found': False,
                     'results': [],
-                    'explanation': parsed.get('general_explanation', 'По вашему запросу ничего не найдено')
+                    'explanation': parsed.get('explanation', 'По вашему запросу ничего не найдено')
                 }
 
             # Находим полные данные объявлений по ID
@@ -153,14 +153,13 @@ class AISearchService:
                 ann_id = result['id']
                 if ann_id in announcement_map:
                     full_ann = announcement_map[ann_id].copy()
-                    full_ann['relevance_score'] = result['relevance_score']
-                    full_ann['ai_explanation'] = result['explanation']
+                    full_ann['task_solution'] = result['task_solution']
                     full_results.append(full_ann)
 
             return {
                 'found': True,
                 'results': full_results,
-                'explanation': parsed.get('general_explanation', 'Найдены подходящие AI-решения')
+                'explanation': parsed.get('explanation', 'Найдены подходящие AI-решения')
             }
 
         except json.JSONDecodeError as e:
@@ -195,7 +194,7 @@ class AISearchService:
 
         for ann in announcements:
             if (query_lower in ann['bot_name'].lower() or
-                query_lower in ann['bot_function'].lower()):
+                query_lower in ann['task_solution'].lower()):
                 results.append(ann)
 
         return {
@@ -218,7 +217,7 @@ class AISearchService:
         if not self.client:
             # Если нет OpenAI API, возвращаем обрезанные описания
             return {
-                str(ann['id']): ann['bot_function'][:50] + '...'
+                str(ann['id']): ann['task_solution'][:50] + '...'
                 for ann in announcements
             }
 
@@ -229,7 +228,7 @@ class AISearchService:
                 announcements_data.append({
                     'id': ann['id'],
                     'name': ann['bot_name'],
-                    'description': ann['bot_function']
+                    'description': ann['task_solution']
                 })
 
             prompt = f"""
@@ -280,6 +279,6 @@ class AISearchService:
             print(f"Ошибка создания коротких описаний: {e}")
             # Возвращаем обрезанные описания как fallback
             return {
-                str(ann['id']): ann['bot_function'][:50] + '...'
+                str(ann['id']): ann['task_solution'][:50] + '...'
                 for ann in announcements
             }

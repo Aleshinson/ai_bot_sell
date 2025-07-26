@@ -21,6 +21,12 @@ class Config:
     # URL чата
     CHAT_URL: str = os.getenv("CHAT_URL")
     
+    # ID чата для публикации объявлений
+    CHAT_ID: int = int(os.getenv("CHAT_ID"))
+    
+    # ID топика в чате для публикации объявлений (необязательно)
+    TOPIC_ID: int = int(os.getenv("TOPIC_ID"))
+    
     # ID модераторов (можно задать через переменную окружения или использовать по умолчанию)
     MODERATOR_IDS: List[int] = [
         int(id_str) for id_str in os.getenv("MODERATOR_IDS").split(",")
@@ -37,13 +43,19 @@ class Config:
             raise ValueError("DATABASE_URL не найден в переменных окружения")
 
         if not cls.OPENAI_API_KEY:
-            print("⚠️ OPENAI_API_KEY не найден - будет использоваться обычный поиск")
+            raise ValueError("OPENAI_API_KEY не настроен - необходим для умного поиска")
         
         if not cls.MODERATOR_IDS:
             raise ValueError("MODERATOR_IDS не настроены")
 
         if not cls.CHAT_URL:
             raise ValueError("CHAT_URL не настроен")
+
+        if not cls.CHAT_ID:
+            raise ValueError("CHAT_ID не настроен")
+
+        if not cls.TOPIC_ID:
+            raise ValueError("TOPIC_ID не настроен")
 
 
 # Валидация конфигурации при импорте

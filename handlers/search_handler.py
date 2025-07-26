@@ -28,6 +28,8 @@ class SearchHandler(BaseHandler, DatabaseMixin):
         self.router.message(SearchForm.search_query)(self.process_search_query)
         # Обработчик для выбора конкретного решения
         self.router.callback_query(F.data.startswith('view_solution_'))(self.view_solution_details)
+        # Обработчик для возврата к поиску
+        self.router.callback_query(F.data == 'back_search')(self.back_search)
         # Обработчик отмены поиска
         self.router.callback_query(F.data == 'cancel_search')(self.cancel_search)
 
@@ -36,7 +38,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
     async def start_search(callback: CallbackQuery, state: FSMContext):
         """
         Начало умного поиска AI-решений.
-        
+
         Args:
             callback: Объект обратного вызова
             state: Контекст состояния FSM
@@ -67,7 +69,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
     async def process_search_query(self, message: Message, state: FSMContext):
         """
         Обработка поискового запроса с помощью AI.
-        
+
         Args:
             message: Объект сообщения
             state: Контекст состояния FSM
@@ -142,7 +144,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
     async def view_solution_details(self, callback: CallbackQuery):
         """
         Просмотр детальной информации о решении.
-        
+
         Args:
             callback: Объект обратного вызова
         """
@@ -170,10 +172,38 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             )
 
 
+    async def back_search(self, callback: CallbackQuery, state: FSMContext):
+        """
+        Возврат к поиску.
+
+        Args:
+            callback: Объект обратного вызова
+            state: Контекст состояния FSM
+        """
+        try:
+            # Возвращаем к состоянию поиска
+            await callback.message.edit_text(
+                messages.get_message('search', 'enter_search_query'),
+                parse_mode='HTML',
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=messages.get_message('search', 'buttons', 'cancel_search'),
+                        callback_data='cancel_search'
+                    )]
+                ])
+            )
+            await state.set_state(SearchForm.search_query)
+            await callback.answer()
+        except Exception as e:
+            await callback.message.answer(
+                messages.get_message('search', 'search_error', error=str(e))
+            )
+
+
     async def _show_full_announcement(self, message: Message, announcement: dict):
         """
         Показать полное объявление.
-        
+
         Args:
             message: Объект сообщения
             announcement: Словарь с данными объявления
@@ -182,13 +212,10 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             # Форматируем полную информацию об объявлении
             full_text = (
                 f"🤖 <b>{announcement['bot_name']}</b>\n\n"
-                f"⚡ <b>Проблема:</b>\n{announcement['bot_function']}\n\n"
+                f"⚡ <b>Проблема:</b>\n{announcement['task_solution']}\n\n"
             )
 
             # Добавляем дополнительные поля если они есть
-            if announcement.get('solution_description'):
-                full_text += f"🎯 <b>Функционал:</b>\n{announcement['solution_description']}\n\n"
-
             if announcement.get('included_features'):
                 full_text += f"📦 <b>Включено:</b>\n{announcement['included_features']}\n\n"
 
@@ -206,11 +233,15 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
             full_text += f"📅 <b>Создано:</b> {announcement['created_at'].strftime('%d.%m.%Y')}"
 
-            # Создаем кнопку для связи с автором
+            # Создаем кнопки для связи с автором и возврата к поиску
             contact_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
                     text=messages.get_message('search', 'buttons', 'contact_author'),
                     url=f"tg://user?id={announcement['user_id']}"
+                )],
+                [InlineKeyboardButton(
+                    text=messages.get_message('search', 'buttons', 'back_search'),
+                    callback_data='back_search'
                 )]
             ])
 
@@ -229,15 +260,12 @@ class SearchHandler(BaseHandler, DatabaseMixin):
     async def _show_announcements_list(self, message: Message, announcements: List[dict]):
         """
         Показать список объявлений одним сообщением с кнопками.
-        
+
         Args:
             message: Объект сообщения
             announcements: Список объявлений
         """
         try:
-            # Создаем короткие описания через GPT
-            short_descriptions = await self.ai_search.create_short_descriptions(announcements)
-
             # Формируем текст списка
             list_text = "📋 <b>Найденные AI-решения:</b>\n\n"
 
@@ -245,11 +273,12 @@ class SearchHandler(BaseHandler, DatabaseMixin):
             keyboard = []
 
             for i, announcement in enumerate(announcements[:10], 1):  # Максимум 10 результатов
-                # Получаем короткое описание от GPT или fallback
-                short_desc = short_descriptions.get(
-                    str(announcement['id']),
-                    announcement['bot_function'][:50] + '...'
-                )
+                # Получаем короткое описание
+                if self.ai_search.client:  # Если есть доступ к OpenAI API
+                    short_desc = await self.ai_search.create_short_descriptions([announcement])
+                    short_desc = short_desc.get(str(announcement['id']), announcement['task_solution'][:50] + '...')
+                else:
+                    short_desc = announcement['task_solution'][:50] + '...'
 
                 # Добавляем в текст списка
                 list_text += f"{i}. <b>{announcement['bot_name']}</b>\n"
@@ -262,6 +291,14 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                         callback_data=f"view_solution_{announcement['id']}"
                     )
                 ])
+
+            # Добавляем кнопку возврата к поиску
+            keyboard.append([
+                InlineKeyboardButton(
+                    text=messages.get_message('search', 'buttons', 'back_search'),
+                    callback_data='back_search'
+                )
+            ])
 
             # Создаем клавиатуру
             reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -343,8 +380,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 'user_id': ann.user_id,
                 'chat_id': ann.chat_id,
                 'bot_name': ann.bot_name,
-                'bot_function': ann.bot_function,
-                'solution_description': ann.solution_description,
+                'task_solution': ann.task_solution,
                 'included_features': ann.included_features,
                 'client_requirements': ann.client_requirements,
                 'launch_time': ann.launch_time,
@@ -380,8 +416,7 @@ class SearchHandler(BaseHandler, DatabaseMixin):
                 'user_id': announcement.user_id,
                 'chat_id': announcement.chat_id,
                 'bot_name': announcement.bot_name,
-                'bot_function': announcement.bot_function,
-                'solution_description': announcement.solution_description,
+                'task_solution': announcement.task_solution,
                 'included_features': announcement.included_features,
                 'client_requirements': announcement.client_requirements,
                 'launch_time': announcement.launch_time,

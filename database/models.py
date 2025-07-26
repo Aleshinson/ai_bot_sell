@@ -14,8 +14,7 @@ class Announcement(Base):
     user_id = Column(BigInteger, nullable=False)
     chat_id = Column(BigInteger, nullable=False)
     bot_name = Column(String(255), nullable=False)
-    bot_function = Column(String(255), nullable=False)
-    solution_description = Column(Text, nullable=False)
+    task_solution = Column(Text, nullable=False)  # Описание задачи и решения
     included_features = Column(Text, nullable=False)
     client_requirements = Column(Text, nullable=False)
     launch_time = Column(String(50), nullable=False)  # Срок запуска

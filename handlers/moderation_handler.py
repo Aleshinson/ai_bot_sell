@@ -39,7 +39,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def approve_announcement(self, callback: CallbackQuery):
         """
         Одобрение объявления.
-        
+
         Args:
             callback: Объект обратного вызова
         """
@@ -76,6 +76,9 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             # Уведомление автора объявления
             await self._notify_user_approval(callback.message, announcement)
 
+            # Публикация объявления в чате
+            await self._publish_to_chat(callback.message, announcement)
+
             # Уведомление других модераторов
             await self._notify_other_moderators(callback, moderator_id, approved=True, announcement=announcement)
 
@@ -94,59 +97,59 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def reject_announcement(self, callback: CallbackQuery, state: FSMContext):
         """
         Начало процесса отклонения объявления.
-        
+
         Args:
             callback: Объект обратного вызова
             state: Контекст состояния FSM
         """
         announcement_id = int(callback.data.split('_')[1])
         moderator_id = callback.from_user.id
-        
+
         if not await self.check_permissions(moderator_id, self.moderator_ids):
             await callback.answer(messages.get_message('moderation', 'no_permissions'))
             return
-        
+
         try:
             # Используем безопасную операцию с БД
             announcement = self.safe_db_operation(
                 self._get_announcement_for_rejection,
                 announcement_id
             )
-            
+
             if not announcement:
                 await callback.message.edit_text(
                     messages.get_message('moderation', 'announcement_not_found'),
                     parse_mode='HTML'
                 )
                 return
-            
+
             if not announcement['is_pending']:
                 await callback.message.edit_text(
                     messages.get_message('moderation', 'already_processed'),
                     parse_mode='HTML'
                 )
                 return
-            
+
             await callback.message.edit_text(
                 messages.get_message('moderation', 'rejection_reason_request'),
                 parse_mode='HTML'
             )
             await state.set_state(ModerationForm.comment)
             await state.update_data(announcement_id=announcement_id, moderator_id=moderator_id)
-            
+
         except Exception as e:
             await callback.message.answer(
                 messages.get_message('moderation', 'general_error', error=str(e)),
                 parse_mode='HTML'
             )
-        
+
         await callback.answer()
 
 
     async def process_rejection_comment(self, message: Message, state: FSMContext):
         """
         Обработка комментария при отклонении объявления.
-        
+
         Args:
             message: Объект сообщения
             state: Контекст состояния FSM
@@ -210,7 +213,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def contact_user(self, callback: CallbackQuery, state: FSMContext):
         """
         Начало процесса связи с пользователем.
-        
+
         Args:
             callback: Объект обратного вызова
             state: Контекст состояния FSM
@@ -230,7 +233,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def process_contact_user(self, message: Message, state: FSMContext):
         """
         Обработка запроса на связь с пользователем.
-        
+
         Args:
             message: Объект сообщения
             state: Контекст состояния FSM
@@ -255,7 +258,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             await message.answer(
                 messages.get_message('contact', 'announcement_info_template',
                                      bot_name=announcement['bot_name'],
-                                     bot_function=announcement['bot_function']),
+                                     task_solution=announcement['task_solution']),
                 parse_mode='HTML',
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[
@@ -279,7 +282,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def back_to_menu(callback: CallbackQuery):
         """
         Обработчик кнопки 'В меню'.
-        
+
         Args:
             callback: Объект обратного вызова
         """
@@ -299,15 +302,25 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 logger.error(f"Failed to send error message: {answer_error}")
 
 
+    def get_chat_id(self):
+        """
+        Получение ID чата и топика для публикации.
+
+        Returns:
+            tuple: (chat_id, thread_id)
+        """
+        return getattr(Config, 'CHAT_ID', None), getattr(Config, 'TOPIC_ID', None)
+
+
     def _approve_announcement_in_db(self, session, announcement_id: int, moderator_id: int):
         """
         Одобрение объявления в БД.
-        
+
         Args:
             session: Сессия базы данных
             announcement_id: ID объявления
             moderator_id: ID модератора
-            
+
         Returns:
             Словарь с данными объявления или информацией об ошибке
         """
@@ -329,8 +342,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             'chat_id': announcement.chat_id,
             'user_id': announcement.user_id,
             'bot_name': announcement.bot_name,
-            'bot_function': announcement.bot_function,
-            'solution_description': announcement.solution_description,
+            'task_solution': announcement.task_solution,
             'included_features': announcement.included_features,
             'client_requirements': announcement.client_requirements,
             'launch_time': announcement.launch_time,
@@ -343,35 +355,35 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     def _reject_announcement_in_db(self, session, announcement_id: int, moderator_id: int, comment: str):
         """
         Отклонение объявления в БД.
-        
+
         Args:
             session: Сессия базы данных
             announcement_id: ID объявления
             moderator_id: ID модератора
             comment: Комментарий модератора
-            
+
         Returns:
             Словарь с данными объявления или информацией об ошибке
         """
         announcement = self.get_announcement_by_id(session, announcement_id)
         if not announcement:
             return None
-        
+
         if hasattr(announcement, 'is_processed') and announcement.is_processed:
             return {'already_processed': True}
         elif hasattr(announcement, 'moderator_id') and announcement.moderator_id is not None:
             return {'already_processed': True}
-        
+
         announcement.is_approved = False
         announcement.moderator_id = moderator_id
         announcement.comment = comment
-        
+
         # Возвращаем данные объявления
         return {
             'id': announcement.id,
             'chat_id': announcement.chat_id,
             'bot_name': announcement.bot_name,
-            'bot_function': announcement.bot_function,
+            'task_solution': announcement.task_solution,
             'created_at': announcement.created_at
         }
 
@@ -379,25 +391,24 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     def _get_announcement_for_rejection(self, session, announcement_id: int):
         """
         Получение объявления для отклонения.
-        
+
         Args:
             session: Сессия базы данных
             announcement_id: ID объявления
-            
+
         Returns:
             Словарь с данными объявления или None
         """
         announcement = self.get_announcement_by_id(session, announcement_id)
         if not announcement:
             return None
-        
+
         return {
             'id': announcement.id,
             'user_id': announcement.user_id,
             'chat_id': announcement.chat_id,
             'bot_name': announcement.bot_name,
-            'bot_function': announcement.bot_function,
-            'is_approved': announcement.is_approved,
+            'task_solution': announcement.task_solution,
             'is_pending': announcement.is_pending(),
             'created_at': announcement.created_at
         }
@@ -406,25 +417,23 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     def _get_announcement_for_contact(self, session, announcement_id: int):
         """
         Получение объявления для связи с пользователем.
-        
+
         Args:
             session: Сессия базы данных
             announcement_id: ID объявления
-            
+
         Returns:
             Словарь с данными объявления или None
         """
         announcement = self.get_announcement_by_id(session, announcement_id)
         if not announcement:
             return None
-        
+
         return {
             'id': announcement.id,
-            'user_id': announcement.user_id,
             'chat_id': announcement.chat_id,
             'bot_name': announcement.bot_name,
-            'bot_function': announcement.bot_function,
-            'is_approved': announcement.is_approved,
+            'task_solution': announcement.task_solution,
             'created_at': announcement.created_at
         }
 
@@ -433,7 +442,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def _notify_user_approval(message: Message, announcement: dict):
         """
         Уведомление пользователя об одобрении объявления.
-        
+
         Args:
             message: Объект сообщения
             announcement: Словарь с данными объявления
@@ -468,7 +477,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def _notify_user_rejection(message: Message, announcement: dict, comment: str):
         """
         Уведомление пользователя об отклонении.
-        
+
         Args:
             message: Объект сообщения
             announcement: Словарь с данными объявления
@@ -490,7 +499,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def _notify_other_moderators(self, callback: CallbackQuery, moderator_id: int, approved: bool, announcement: dict):
         """
         Уведомление других модераторов.
-        
+
         Args:
             callback: Объект обратного вызова
             moderator_id: ID модератора
@@ -504,8 +513,8 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 try:
                     await callback.message.bot.send_message(
                         mod_id,
-                        messages.get_message('moderation', message_key, 
-                                           moderator_id=moderator_id, 
+                        messages.get_message('moderation', message_key,
+                                           moderator_id=moderator_id,
                                            bot_name=announcement.get('bot_name')),
                         parse_mode='HTML'
                     )
@@ -516,7 +525,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def _notify_other_moderators_rejection(self, message: Message, moderator_id: int, comment: str, announcement: dict):
         """
         Уведомление других модераторов об отклонении.
-        
+
         Args:
             message: Объект сообщения
             moderator_id: ID модератора
@@ -528,9 +537,9 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 try:
                     await message.bot.send_message(
                         mod_id,
-                        messages.get_message('moderation', 'rejected_by_moderator', 
-                                           moderator_id=moderator_id, 
-                                           comment=comment, 
+                        messages.get_message('moderation', 'rejected_by_moderator',
+                                           moderator_id=moderator_id,
+                                           comment=comment,
                                            bot_name=announcement['bot_name']),
                         parse_mode='HTML'
                     )
@@ -541,7 +550,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     async def _update_moderator_message(self, callback: CallbackQuery, announcement: dict, approved: bool):
         """
         Обновление сообщения модератора.
-        
+
         Args:
             callback: Объект обратного вызова
             announcement: Словарь с данными объявления
@@ -551,8 +560,7 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
             await callback.message.edit_text(
                 messages.get_message('moderation', 'moderator_approval_notification',
                                      bot_name=announcement['bot_name'],
-                                     bot_function=announcement['bot_function'],
-                                     solution_description=announcement['solution_description'],
+                                     task_solution=announcement['task_solution'],
                                      included_features=announcement['included_features'],
                                      client_requirements=announcement['client_requirements'],
                                      launch_time=announcement['launch_time'],
@@ -569,10 +577,10 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
     def _create_contact_keyboard(self, chat_id: int) -> InlineKeyboardMarkup:
         """
         Создание клавиатуры для связи с пользователем.
-        
+
         Args:
             chat_id: ID чата пользователя
-            
+
         Returns:
             Клавиатура для связи с пользователем
         """
@@ -582,3 +590,106 @@ class ModerationHandler(BaseHandler, DatabaseMixin):
                 [InlineKeyboardButton(text=messages.get_button_text('moderation', 'contact'), url=f"tg://user?id={chat_id}")]
             ]
         )
+
+
+    async def _publish_to_chat(self, message: Message, announcement: dict):
+        """
+        Публикация объявления в чате.
+
+        Args:
+            message: Объект сообщения
+            announcement: Словарь с данными объявления
+        """
+        try:
+            # Получаем ID чата и топика
+            chat_id = getattr(Config, 'CHAT_ID', None)
+            thread_id = getattr(Config, 'TOPIC_ID', None)
+            
+            if not chat_id:
+                raise ValueError("CHAT_ID не указан в конфигурации")
+
+            # Формируем красивое объявление для публикации в чате
+            chat_announcement_text = f"""🤖 <b>{announcement['bot_name']}</b>
+
+⚡ <b>Задача и решение:</b>
+{announcement['task_solution']}
+
+📦 <b>Включено:</b>
+{announcement['included_features']}
+
+📋 <b>Что нужно от клиента:</b>
+{announcement['client_requirements']}
+
+⏱️ <b>Срок запуска:</b>
+{announcement['launch_time']}
+
+💰 <b>Цена:</b>
+{announcement['price']}
+
+📊 <b>Сложность:</b>
+{announcement['complexity']}
+
+📅 <b>Дата создания:</b>
+{announcement['created_at'].strftime('%d.%m.%Y')}"""
+
+            # Создаем клавиатуру для связи с автором
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text="💬 Связаться с автором",
+                        url=f"tg://user?id={announcement['user_id']}"
+                    )]
+                ]
+            )
+
+            # Публикуем текст объявления
+            sent_message = await message.bot.send_message(
+                chat_id=chat_id,
+                text=chat_announcement_text,
+                parse_mode='HTML',
+                reply_markup=keyboard,
+                message_thread_id=thread_id
+            )
+
+            # Если есть файлы, отправляем их
+            if announcement.get('documents'):
+                for doc in announcement['documents']:
+                    try:
+                        await message.bot.send_document(
+                            chat_id=chat_id,
+                            document=doc['file_id'],
+                            reply_to_message_id=sent_message.message_id,
+                            message_thread_id=thread_id
+                        )
+                    except Exception as e:
+                        logger.error(f"Error sending document: {str(e)}")
+
+            # Если есть видео, отправляем их
+            if announcement.get('videos'):
+                for video in announcement['videos']:
+                    try:
+                        await message.bot.send_video(
+                            chat_id=chat_id,
+                            video=video['file_id'],
+                            reply_to_message_id=sent_message.message_id,
+                            message_thread_id=thread_id
+                        )
+                    except Exception as e:
+                        logger.error(f"Error sending video: {str(e)}")
+
+            # Если есть демо-ссылка, отправляем её
+            if announcement.get('demo_url'):
+                try:
+                    await message.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"🌐 <b>Демо-версия:</b>\n{announcement['demo_url']}",
+                        parse_mode='HTML',
+                        reply_to_message_id=sent_message.message_id,
+                        message_thread_id=thread_id
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending demo URL: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Ошибка публикации объявления в чат: {str(e)}")
+            raise

@@ -10,10 +10,10 @@ import os
 
 class AnnouncementForm(StatesGroup):
     """Состояния формы создания объявления."""
+    explanation_shown = State()
     template_shown = State()
     bot_name = State()
-    bot_function = State()
-    solution_description = State()
+    task_solution = State()  # Combined state for task and solution
     included_features = State()
     client_requirements = State()
     launch_time = State()
@@ -21,8 +21,7 @@ class AnnouncementForm(StatesGroup):
     complexity = State()
     documents = State()
     edit_bot_name = State()
-    edit_bot_function = State()
-    edit_solution_description = State()
+    edit_task_solution = State()  # Combined state for editing
     edit_included_features = State()
     edit_client_requirements = State()
     edit_launch_time = State()
@@ -42,15 +41,15 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
     def setup_handlers(self):
         """Настройка обработчиков."""
         self.router.callback_query(F.data == 'add_announcement')(self.show_data_template)
+        self.router.callback_query(F.data == 'next_step')(self.show_template)
         self.router.callback_query(F.data == 'start_filling')(self.start_announcement_creation)
         self.router.message(AnnouncementForm.bot_name)(self.process_bot_name)
-        self.router.message(AnnouncementForm.bot_function)(self.process_bot_function)
-        self.router.message(AnnouncementForm.solution_description)(self.process_solution_description)
+        self.router.message(AnnouncementForm.task_solution)(self.process_task_solution)
         self.router.message(AnnouncementForm.included_features)(self.process_included_features)
         self.router.message(AnnouncementForm.client_requirements)(self.process_client_requirements)
         self.router.message(AnnouncementForm.launch_time)(self.process_launch_time)
         self.router.message(AnnouncementForm.price)(self.process_price)
-        self.router.callback_query(F.data.startswith("complexity_"))(self.process_complexity)
+        self.router.message(AnnouncementForm.complexity)(self.process_complexity)
         self.router.message(AnnouncementForm.documents)(self.process_documents)
         self.router.callback_query(F.data == "documents_done")(self.show_preview)
         # Обработчики навигации
@@ -61,17 +60,41 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         self.router.callback_query(F.data == "edit_announcement")(self.show_edit_menu)
         self.router.callback_query(F.data.startswith("edit_field_"))(self.handle_edit_field)
         self.router.message(AnnouncementForm.edit_bot_name)(self.process_edit_bot_name)
-        self.router.message(AnnouncementForm.edit_bot_function)(self.process_edit_bot_function)
-        self.router.message(AnnouncementForm.edit_solution_description)(self.process_edit_solution_description)
+        self.router.message(AnnouncementForm.edit_task_solution)(self.process_edit_task_solution)
         self.router.message(AnnouncementForm.edit_included_features)(self.process_edit_included_features)
         self.router.message(AnnouncementForm.edit_client_requirements)(self.process_edit_client_requirements)
         self.router.message(AnnouncementForm.edit_launch_time)(self.process_edit_launch_time)
         self.router.message(AnnouncementForm.edit_price)(self.process_edit_price)
-        self.router.callback_query(F.data.startswith("edit_complexity_"))(self.process_edit_complexity)
+        self.router.message(AnnouncementForm.edit_complexity)(self.process_edit_complexity)
         self.router.message(AnnouncementForm.edit_documents)(self.process_edit_documents)
 
     async def show_data_template(self, callback: CallbackQuery, state: FSMContext):
-        """Показ шаблона данных перед началом заполнения."""
+        """Показ объяснения перед шаблоном."""
+        try:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'next_step'),
+                    callback_data="next_step"
+                )],
+                [InlineKeyboardButton(
+                    text=messages.get_message('announcement_creation', 'buttons', 'cancel'),
+                    callback_data="cancel_announcement"
+                )]
+            ])
+
+            await callback.message.edit_text(
+                messages.get_message('announcement_creation', 'creation_explanation'),
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
+            await state.set_state(AnnouncementForm.explanation_shown)
+            await callback.answer()
+
+        except Exception as e:
+            await self.send_error_message(callback, 'general_error', error=str(e))
+
+    async def show_template(self, callback: CallbackQuery, state: FSMContext):
+        """Показ шаблона после нажатия кнопки 'Следующий шаг'."""
         try:
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(
@@ -176,41 +199,25 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
             await self._edit_message_with_navigation(
                 message,
-                messages.get_message('announcement_creation', 'enter_bot_function'),
+                messages.get_message('announcement_creation', 'enter_task_solution'),
                 state,
                 "back_to_bot_name"
             )
-            await state.set_state(AnnouncementForm.bot_function)
+            await state.set_state(AnnouncementForm.task_solution)
 
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
 
-    async def process_bot_function(self, message: Message, state: FSMContext):
-        """Обработка функционала бота."""
+    async def process_task_solution(self, message: Message, state: FSMContext):
+        """Обработка задачи и решения."""
         try:
-            await state.update_data(bot_function=message.text)
-
-            await self._edit_message_with_navigation(
-                message,
-                messages.get_message('announcement_creation', 'enter_solution_description'),
-                state,
-                "back_to_bot_function"
-            )
-            await state.set_state(AnnouncementForm.solution_description)
-
-        except Exception as e:
-            await self.send_error_message(message, 'general_error', error=str(e))
-
-    async def process_solution_description(self, message: Message, state: FSMContext):
-        """Обработка описания функционала."""
-        try:
-            await state.update_data(solution_description=message.text)
+            await state.update_data(task_solution=message.text)
 
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_included_features'),
                 state,
-                "back_to_solution_description"
+                "back_to_task_solution"
             )
             await state.set_state(AnnouncementForm.included_features)
 
@@ -270,47 +277,21 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         try:
             await state.update_data(price=message.text)
 
-            # Создаем кнопки для выбора сложности
-            complexity_buttons = [
-                [
-                    InlineKeyboardButton(
-                        text=messages.get_message('announcement_creation', 'buttons', 'complexity_low'),
-                        callback_data="complexity_low"
-                    ),
-                    InlineKeyboardButton(
-                        text=messages.get_message('announcement_creation', 'buttons', 'complexity_medium'),
-                        callback_data="complexity_medium"
-                    ),
-                    InlineKeyboardButton(
-                        text=messages.get_message('announcement_creation', 'buttons', 'complexity_high'),
-                        callback_data="complexity_high"
-                    )
-                ]
-            ]
-
             await self._edit_message_with_navigation(
                 message,
                 messages.get_message('announcement_creation', 'enter_complexity'),
                 state,
-                "back_to_price",
-                complexity_buttons
+                "back_to_price"
             )
             await state.set_state(AnnouncementForm.complexity)
 
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
 
-    async def process_complexity(self, callback: CallbackQuery, state: FSMContext):
-        """Обработка выбора сложности."""
+    async def process_complexity(self, message: Message, state: FSMContext):
+        """Обработка сложности."""
         try:
-            complexity_map = {
-                "complexity_low": "Низкая",
-                "complexity_medium": "Средняя",
-                "complexity_high": "Высокая"
-            }
-
-            complexity = complexity_map.get(callback.data, "Низкая")
-            await state.update_data(complexity=complexity)
+            await state.update_data(complexity=message.text)
 
             # Создаем кнопку "Готово" для документов
             documents_buttons = [
@@ -320,16 +301,17 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 )]
             ]
 
-            await callback.message.edit_text(
+            await self._edit_message_with_navigation(
+                message,
                 messages.get_message('announcement_creation', 'enter_documents'),
-                parse_mode='HTML',
-                reply_markup=self._create_navigation_keyboard("back_to_complexity", documents_buttons)
+                state,
+                "back_to_complexity",
+                documents_buttons
             )
             await state.set_state(AnnouncementForm.documents)
-            await callback.answer()
 
         except Exception as e:
-            await self.send_error_message(callback, 'general_error', error=str(e))
+            await self.send_error_message(message, 'general_error', error=str(e))
 
     async def show_edit_menu(self, callback: CallbackQuery, state: FSMContext):
         """Показ меню редактирования."""
@@ -345,41 +327,35 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                         callback_data="edit_field_bot_name"
                     ),
                     InlineKeyboardButton(
-                        text="⚡ Проблема",
-                        callback_data="edit_field_bot_function"
+                        text="⚡ Задача и решение",
+                        callback_data="edit_field_task_solution"
                     )
                 ],
                 [
                     InlineKeyboardButton(
-                        text="🎯 Функционал",
-                        callback_data="edit_field_solution_description"
-                    ),
-                    InlineKeyboardButton(
-                        text="📦 Включено",
+                        text="📦 Решение включает в себя:",
                         callback_data="edit_field_included_features"
-                    )
-                ],
-                [
+                    ),
                     InlineKeyboardButton(
                         text="📋 Требования",
                         callback_data="edit_field_client_requirements"
-                    ),
+                    )
+                ],
+                [
                     InlineKeyboardButton(
                         text="⏱️ Срок",
                         callback_data="edit_field_launch_time"
-                    )
-                ],
-                [
+                    ),
                     InlineKeyboardButton(
                         text="💰 Цена",
                         callback_data="edit_field_price"
-                    ),
-                    InlineKeyboardButton(
-                        text="📊 Сложность",
-                        callback_data="edit_field_complexity"
                     )
                 ],
                 [
+                    InlineKeyboardButton(
+                        text="📊 Сложность",
+                        callback_data="edit_field_complexity"
+                    ),
                     InlineKeyboardButton(
                         text="📝 Материалы",
                         callback_data="edit_field_documents"
@@ -401,8 +377,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 messages.get_message(
                     'announcement_creation', 'edit_menu',
                     bot_name=data.get('bot_name', 'Не указано'),
-                    bot_function=data.get('bot_function', 'Не указано'),
-                    solution_description=data.get('solution_description', 'Не указано'),
+                    task_solution=data.get('task_solution', 'Не указано'),
                     included_features=data.get('included_features', 'Не указано'),
                     client_requirements=data.get('client_requirements', 'Не указано'),
                     launch_time=data.get('launch_time', 'Не указано'),
@@ -425,16 +400,12 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
             edit_map = {
                 "bot_name": (AnnouncementForm.edit_bot_name, 'edit_bot_name_prompt', data.get('bot_name', '')),
-                "bot_function": (
-                AnnouncementForm.edit_bot_function, 'edit_bot_function_prompt', data.get('bot_function', '')),
-                "solution_description": (AnnouncementForm.edit_solution_description, 'edit_solution_description_prompt',
-                                         data.get('solution_description', '')),
+                "task_solution": (AnnouncementForm.edit_task_solution, 'edit_task_solution_prompt', data.get('task_solution', '')),
                 "included_features": (AnnouncementForm.edit_included_features, 'edit_included_features_prompt',
-                                      data.get('included_features', '')),
+                                     data.get('included_features', '')),
                 "client_requirements": (AnnouncementForm.edit_client_requirements, 'edit_client_requirements_prompt',
-                                        data.get('client_requirements', '')),
-                "launch_time": (
-                AnnouncementForm.edit_launch_time, 'edit_launch_time_prompt', data.get('launch_time', '')),
+                                      data.get('client_requirements', '')),
+                "launch_time": (AnnouncementForm.edit_launch_time, 'edit_launch_time_prompt', data.get('launch_time', '')),
                 "price": (AnnouncementForm.edit_price, 'edit_price_prompt', data.get('price', '')),
                 "complexity": (AnnouncementForm.edit_complexity, 'enter_complexity', data.get('complexity', '')),
                 "documents": (AnnouncementForm.edit_documents, 'edit_documents_prompt', self._format_documents(data))
@@ -444,24 +415,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 new_state, message_key, current_value = edit_map[field]
 
                 additional_buttons = None
-                if field == "complexity":
-                    additional_buttons = [
-                        [
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_low'),
-                                callback_data="edit_complexity_low"
-                            ),
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_medium'),
-                                callback_data="edit_complexity_medium"
-                            ),
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_high'),
-                                callback_data="edit_complexity_high"
-                            )
-                        ]
-                    ]
-                elif field == "documents":
+                if field == "documents":
                     additional_buttons = [
                         [InlineKeyboardButton(
                             text=messages.get_message('announcement_creation', 'buttons', 'documents_done'),
@@ -496,26 +450,10 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
 
-    async def process_edit_bot_function(self, message: Message, state: FSMContext):
-        """Обработка редактирования функционала бота."""
+    async def process_edit_task_solution(self, message: Message, state: FSMContext):
+        """Обработка редактирования задачи и решения."""
         try:
-            await state.update_data(bot_function=message.text)
-            await self._edit_message_with_navigation(
-                message,
-                self._generate_preview_text(await state.get_data()),
-                state,
-                None,
-                self._create_preview_buttons()
-            )
-            await state.set_state(AnnouncementForm.documents)
-
-        except Exception as e:
-            await self.send_error_message(message, 'general_error', error=str(e))
-
-    async def process_edit_solution_description(self, message: Message, state: FSMContext):
-        """Обработка редактирования описания функционала."""
-        try:
-            await state.update_data(solution_description=message.text)
+            await state.update_data(task_solution=message.text)
             await self._edit_message_with_navigation(
                 message,
                 self._generate_preview_text(await state.get_data()),
@@ -592,28 +530,21 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         except Exception as e:
             await self.send_error_message(message, 'general_error', error=str(e))
 
-    async def process_edit_complexity(self, callback: CallbackQuery, state: FSMContext):
+    async def process_edit_complexity(self, message: Message, state: FSMContext):
         """Обработка редактирования сложности."""
         try:
-            complexity_map = {
-                "edit_complexity_low": "Низкая",
-                "edit_complexity_medium": "Средняя",
-                "edit_complexity_high": "Высокая"
-            }
-
-            complexity = complexity_map.get(callback.data, "Низкая")
-            await state.update_data(complexity=complexity)
-
-            await callback.message.edit_text(
+            await state.update_data(complexity=message.text)
+            await self._edit_message_with_navigation(
+                message,
                 self._generate_preview_text(await state.get_data()),
-                parse_mode='HTML',
-                reply_markup=self._create_navigation_keyboard(None, self._create_preview_buttons())
+                state,
+                None,
+                self._create_preview_buttons()
             )
             await state.set_state(AnnouncementForm.documents)
-            await callback.answer()
 
         except Exception as e:
-            await self.send_error_message(callback, 'general_error', error=str(e))
+            await self.send_error_message(message, 'general_error', error=str(e))
 
     async def process_edit_documents(self, message: Message, state: FSMContext):
         """Обработка редактирования документов."""
@@ -736,8 +667,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         return messages.get_message(
             'announcement_creation', 'preview_template',
             bot_name=data.get('bot_name', 'Не указано'),
-            bot_function=data.get('bot_function', 'Не указано'),
-            solution_description=data.get('solution_description', 'Не указано'),
+            task_solution=data.get('task_solution', 'Не указано'),
             included_features=data.get('included_features', 'Не указано'),
             client_requirements=data.get('client_requirements', 'Не указано'),
             launch_time=data.get('launch_time', 'Не указано'),
@@ -768,11 +698,9 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
 
             navigation_map = {
                 "bot_name": (AnnouncementForm.bot_name, 'enter_bot_name', "cancel_announcement"),
-                "bot_function": (AnnouncementForm.bot_function, 'enter_bot_function', "back_to_bot_name"),
-                "solution_description": (
-                AnnouncementForm.solution_description, 'enter_solution_description', "back_to_bot_function"),
+                "task_solution": (AnnouncementForm.task_solution, 'enter_task_solution', "back_to_bot_name"),
                 "included_features": (
-                AnnouncementForm.included_features, 'enter_included_features', "back_to_solution_description"),
+                AnnouncementForm.included_features, 'enter_included_features', "back_to_task_solution"),
                 "client_requirements": (
                 AnnouncementForm.client_requirements, 'enter_client_requirements', "back_to_included_features"),
                 "launch_time": (AnnouncementForm.launch_time, 'enter_launch_time', "back_to_client_requirements"),
@@ -800,30 +728,6 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 new_state, message_key, back_action = navigation_map[action]
 
                 additional_buttons = None
-                if action == "price":
-                    additional_buttons = [
-                        [
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_low'),
-                                callback_data="complexity_low"
-                            ),
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_medium'),
-                                callback_data="complexity_medium"
-                            ),
-                            InlineKeyboardButton(
-                                text=messages.get_message('announcement_creation', 'buttons', 'complexity_high'),
-                                callback_data="complexity_high"
-                            )
-                        ]
-                    ]
-                elif action == "complexity":
-                    additional_buttons = [
-                        [InlineKeyboardButton(
-                            text=messages.get_message('announcement_creation', 'buttons', 'documents_done'),
-                            callback_data="documents_done"
-                        )]
-                    ]
 
                 await callback.message.edit_text(
                     messages.get_message('announcement_creation', message_key),
@@ -939,8 +843,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
         try:
             data = await state.get_data()
             bot_name = data.get('bot_name')
-            bot_function = data.get('bot_function')
-            solution_description = data.get('solution_description')
+            task_solution = data.get('task_solution')
             included_features = data.get('included_features')
             client_requirements = data.get('client_requirements')
             launch_time = data.get('launch_time')
@@ -955,8 +858,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
                 callback.from_user.id,
                 callback.message.chat.id,
                 bot_name,
-                bot_function,
-                solution_description,
+                task_solution,
                 included_features,
                 client_requirements,
                 launch_time,
@@ -1011,21 +913,19 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             await self.send_error_message(callback, 'general_error', error=str(e))
 
     def _create_announcement_in_db(self, session, user_id: int, chat_id: int,
-                                   bot_name: str, bot_function: str, solution_description: str,
-                                   included_features: str, client_requirements: str,
-                                   launch_time: str, price: str, complexity: str,
+                                   bot_name: str, task_solution: str, included_features: str,
+                                   client_requirements: str, launch_time: str, price: str, complexity: str,
                                    demo_url: str, documents: list, videos: list) -> dict:
         """Создание объявления в базе данных."""
-        announcement = self.create_announcement(session, user_id, chat_id, bot_name, bot_function,
-                                                solution_description, included_features, client_requirements,
-                                                launch_time, price, complexity, demo_url, documents, videos)
+        announcement = self.create_announcement(session, user_id, chat_id, bot_name, task_solution,
+                                                included_features, client_requirements, launch_time, price, complexity,
+                                                demo_url, documents, videos)
         return {
             'id': announcement.id,
             'user_id': announcement.user_id,
             'chat_id': announcement.chat_id,
             'bot_name': announcement.bot_name,
-            'bot_function': announcement.bot_function,
-            'solution_description': announcement.solution_description,
+            'task_solution': announcement.task_solution,
             'included_features': announcement.included_features,
             'client_requirements': announcement.client_requirements,
             'launch_time': announcement.launch_time,
@@ -1055,8 +955,7 @@ class AnnouncementHandler(BaseHandler, DatabaseMixin):
             # Формируем текст объявления с файлами
             announcement_text = messages.get_message('moderation', 'new_announcement_template',
                 bot_name=announcement['bot_name'],
-                bot_function=announcement['bot_function'],
-                solution_description=announcement['solution_description'],
+                task_solution=announcement['task_solution'],
                 included_features=announcement['included_features'],
                 client_requirements=announcement['client_requirements'],
                 launch_time=announcement['launch_time'],

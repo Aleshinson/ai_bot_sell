@@ -111,10 +111,9 @@ class DatabaseMixin:
         return session.query(Announcement).filter(Announcement.id == announcement_id).first()
 
     def create_announcement(self, session: Session, user_id: int, chat_id: int,
-                           bot_name: str, bot_function: str, solution_description: str,
-                           included_features: str, client_requirements: str,
-                           launch_time: str, price: str, complexity: str,
-                           demo_url: str, documents: list, videos: list) -> Announcement:
+                           bot_name: str, task_solution: str, included_features: str,
+                           client_requirements: str, launch_time: str, price: str,
+                           complexity: str, demo_url: str, documents: list, videos: list) -> Announcement:
         """
         Создание нового объявления.
 
@@ -123,8 +122,7 @@ class DatabaseMixin:
             user_id: ID пользователя.
             chat_id: ID чата.
             bot_name: Название бота.
-            bot_function: Описание проблемы, решаемой ботом.
-            solution_description: Описание функционала.
+            task_solution: Описание задачи и решения.
             included_features: Включенные возможности.
             client_requirements: Требования к клиенту.
             launch_time: Срок запуска.
@@ -141,8 +139,7 @@ class DatabaseMixin:
             user_id=user_id,
             chat_id=chat_id,
             bot_name=bot_name,
-            bot_function=bot_function,
-            solution_description=solution_description,
+            task_solution=task_solution,
             included_features=included_features,
             client_requirements=client_requirements,
             launch_time=launch_time,
