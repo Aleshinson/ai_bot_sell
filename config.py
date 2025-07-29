@@ -27,6 +27,9 @@ class Config:
     # ID топика в чате для публикации объявлений (необязательно)
     TOPIC_ID: int = int(os.getenv("TOPIC_ID"))
     
+    # ID топика для кастомных запросов (необязательно)
+    TOPIC_ID_CUSTOM: int = int(os.getenv("TOPIC_ID_CUSTOM"))
+    
     # ID модераторов (можно задать через переменную окружения или использовать по умолчанию)
     MODERATOR_IDS: List[int] = [
         int(id_str) for id_str in os.getenv("MODERATOR_IDS").split(",")
@@ -56,6 +59,9 @@ class Config:
 
         if not cls.TOPIC_ID:
             raise ValueError("TOPIC_ID не настроен")
+
+        if not cls.TOPIC_ID_CUSTOM:
+            raise ValueError("TOPIC_ID_CUSTOM не настроен")
 
 
 # Валидация конфигурации при импорте

@@ -3,6 +3,7 @@ from .start_handler import StartHandler
 from .announcement_handler import AnnouncementHandler
 from .moderation_handler import ModerationHandler
 from .search_handler import SearchHandler
+from .custom_request_handler import CustomRequestHandler
 
 
 def setup_handlers() -> Router:
@@ -19,7 +20,8 @@ def setup_handlers() -> Router:
         StartHandler(),
         AnnouncementHandler(),
         ModerationHandler(),
-        SearchHandler()
+        SearchHandler(),
+        CustomRequestHandler()
     ]
 
     # Добавление роутеров всех обработчиков к главному роутеру
@@ -35,5 +37,6 @@ __all__ = [
     'StartHandler',
     'AnnouncementHandler',
     'ModerationHandler',
-    'SearchHandler'
+    'SearchHandler',
+    'CustomRequestHandler'
 ]

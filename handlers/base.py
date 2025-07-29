@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from aiogram import Router
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.orm import Session
-from database.models import Announcement
+from database.models import Announcement, CustomRequest
 from database.db import get_session
 from utils import messages
 from typing import Optional, List
@@ -173,4 +173,38 @@ class DatabaseMixin:
             announcement.is_approved = is_approved
             announcement.moderator_id = moderator_id
             return announcement
+        return None
+
+    def get_custom_request_by_id(self, session: Session, request_id: int) -> Optional[CustomRequest]:
+        """
+        Получение заявки по ID.
+
+        Args:
+            session: Сессия базы данных.
+            request_id: ID заявки.
+
+        Returns:
+            Optional[CustomRequest]: Объект заявки или None, если не найдено.
+        """
+        return session.query(CustomRequest).filter(CustomRequest.id == request_id).first()
+
+    def update_custom_request_status(self, session: Session, request_id: int,
+                                   is_approved: bool, moderator_id: int) -> Optional[CustomRequest]:
+        """
+        Обновление статуса заявки.
+
+        Args:
+            session: Сессия базы данных.
+            request_id: ID заявки.
+            is_approved: Статус одобрения.
+            moderator_id: ID модератора.
+
+        Returns:
+            Optional[CustomRequest]: Обновленный объект заявки или None, если не найдено.
+        """
+        custom_request = self.get_custom_request_by_id(session, request_id)
+        if custom_request and custom_request.is_approved is None:
+            custom_request.is_approved = is_approved
+            custom_request.moderator_id = moderator_id
+            return custom_request
         return None

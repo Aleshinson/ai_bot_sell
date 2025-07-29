@@ -14,17 +14,17 @@ class Announcement(Base):
     user_id = Column(BigInteger, nullable=False)
     chat_id = Column(BigInteger, nullable=False)
     bot_name = Column(String(255), nullable=False)
-    task_solution = Column(Text, nullable=False)  # Описание задачи и решения
+    task_solution = Column(Text, nullable=False)
     included_features = Column(Text, nullable=False)
     client_requirements = Column(Text, nullable=False)
-    launch_time = Column(String(50), nullable=False)  # Срок запуска
-    price = Column(String(100), nullable=False)      # Цена
-    complexity = Column(Text, nullable=False)  # Сложность
-    demo_url = Column(String(2048), nullable=True)  # Ссылка на демо
-    documents = Column(JSON, nullable=True)  # JSON с информацией о документах
-    videos = Column(JSON, nullable=True)  # JSON с информацией о видео
+    launch_time = Column(String(50), nullable=False)
+    price = Column(String(100), nullable=False)
+    complexity = Column(Text, nullable=False)
+    demo_url = Column(String(2048), nullable=True)
+    documents = Column(JSON, nullable=True)
+    videos = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    is_approved = Column(Boolean, default=None)  # None - pending, True - approved, False - rejected
+    is_approved = Column(Boolean, default=None)
     moderator_id = Column(Integer, nullable=True)
 
     def __repr__(self):
@@ -50,6 +50,46 @@ class Announcement(Base):
 
     def is_rejected(self) -> bool:
         """Проверка, отклонено ли объявление"""
+        return self.is_approved is False
+
+
+class CustomRequest(Base):
+    """Модель заявки на индивидуальное решение"""
+    __tablename__ = 'custom_requests'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False)
+    chat_id = Column(BigInteger, nullable=False)
+    business_description = Column(Text, nullable=False)
+    automation_task = Column(Text, nullable=False)
+    budget = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_approved = Column(Boolean, default=None)
+    moderator_id = Column(Integer, nullable=True)
+
+    def __repr__(self):
+        return f"<CustomRequest(id={self.id}, user_id={self.user_id}, is_approved={self.is_approved})>"
+
+    @property
+    def status_text(self) -> str:
+        """Текстовое представление статуса"""
+        if self.is_approved is None:
+            return "На модерации"
+        elif self.is_approved:
+            return "Одобрена"
+        else:
+            return "Отклонена"
+
+    def is_pending(self) -> bool:
+        """Проверка, находится ли заявка на модерации"""
+        return self.is_approved is None
+
+    def is_approved_status(self) -> bool:
+        """Проверка, одобрена ли заявка"""
+        return self.is_approved is True
+
+    def is_rejected(self) -> bool:
+        """Проверка, отклонена ли заявка"""
         return self.is_approved is False
 
 

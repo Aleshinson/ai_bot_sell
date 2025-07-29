@@ -104,23 +104,24 @@ class SearchHandler(BaseHandler, DatabaseMixin):
 
             # Обновляем сообщение с результатами поиска
             if not search_result['found']:
-                # Если ничего не найдено - предлагаем перейти в чат
-                no_results_text = (
-                    '🔍 Подходящих объявлений не найдено\n\n'
-                    '💬 Вы можете перейти в чат и посмотреть то, что имеется у нас'
-                )
+                # Если ничего не найдено - предлагаем перейти в чат или оставить заявку
+                no_results_text = messages.get_message('search', 'no_results')
 
-                # Добавляем кнопку перехода в чат
-                chat_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                # Добавляем кнопки перехода в чат и заявки
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(
-                        text='💬 Перейти в чат',
+                        text=messages.get_message('search', 'buttons', 'go_to_chat'),
                         url=self.get_chat_url()
+                    )],
+                    [InlineKeyboardButton(
+                        text=messages.get_message('search', 'buttons', 'custom_request'),
+                        callback_data='custom_request'
                     )]
                 ])
 
                 await message.answer(
                     no_results_text,
-                    reply_markup=chat_keyboard,
+                    reply_markup=keyboard,
                     parse_mode='HTML'
                 )
             else:
